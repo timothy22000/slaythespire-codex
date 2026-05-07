@@ -15,7 +15,9 @@ Pre-warmed in a background thread at startup.
 from __future__ import annotations
 
 import json
+import random
 import threading
+from pathlib import Path
 from typing import Any
 
 import gradio as gr
@@ -38,6 +40,7 @@ COST_DISPLAY_TO_RAW = {
     "Unplayable": "-2",
     "Costless": "",
 }
+COST_RAW_TO_DISPLAY = {v: k for k, v in COST_DISPLAY_TO_RAW.items()}
 
 # Tiered similarity warning thresholds (calibrated empirically against the
 # indexed corpus; see plan file for rationale).
@@ -241,6 +244,145 @@ def _on_game_change(game_label: str, current_type, current_rarity, current_color
 
 
 # ---------------------------------------------------------------------------
+# Randomize + file-upload handlers
+# ---------------------------------------------------------------------------
+
+# Form-field outputs in the order the handlers return values.
+# Must match the `outputs=` list on the corresponding event wirings.
+FORM_FIELD_KEYS = (
+    "name", "type_", "rarity", "color", "cost",
+    "description", "description_upgraded", "keywords",
+    "damage", "block",
+)
+
+
+def _parse_keywords(raw: Any) -> str:
+    """Parquet stores keywords as JSON string lists. Return comma-separated."""
+    if raw is None or (isinstance(raw, float) and pd.isna(raw)):
+        return ""
+    if isinstance(raw, list):
+        return ", ".join(str(x) for x in raw)
+    if isinstance(raw, str):
+        s = raw.strip()
+        if not s:
+            return ""
+        try:
+            parsed = json.loads(s)
+            if isinstance(parsed, list):
+                return ", ".join(str(x) for x in parsed)
+        except json.JSONDecodeError:
+            pass
+        return s  # already comma-separated text
+    return str(raw)
+
+
+def _cost_raw_to_display(raw: Any) -> str:
+    if raw is None or (isinstance(raw, float) and pd.isna(raw)):
+        return "1"
+    raw_s = str(raw)
+    return COST_RAW_TO_DISPLAY.get(raw_s, raw_s if raw_s in COST_DISPLAY_TO_RAW else "1")
+
+
+def randomize(game_label: str):
+    """Pick a random card from the chosen game and return form values."""
+    game = GAMES[game_label]
+    df, _ = load_game(game)
+    row = df.sample(1, random_state=random.randint(0, 1 << 30)).iloc[0]
+
+    def _opt(val, default=""):
+        if val is None or (isinstance(val, float) and pd.isna(val)):
+            return default
+        return val
+
+    return (
+        _opt(row.get("name"), ""),
+        _opt(row.get("type"), "Attack"),
+        _opt(row.get("rarity"), "Common"),
+        _opt(row.get("color"), "ironclad"),
+        _cost_raw_to_display(row.get("cost")),
+        _opt(row.get("description"), ""),
+        _opt(row.get("description_upgraded"), ""),
+        _parse_keywords(row.get("keywords")),
+        float(row["damage"]) if pd.notna(row.get("damage")) else None,
+        float(row["block"]) if pd.notna(row.get("block")) else None,
+    )
+
+
+def load_card_file(file_obj, game_label: str):
+    """Populate form fields from an uploaded file.
+
+    .json: parsed as a dict; recognised keys map to form fields. Cost can be
+           int or string; gets converted to the display label.
+    .txt/.md: file contents become the `description` field. Other fields
+              left unchanged.
+    Anything else: same fallback as .txt (treat as raw description).
+
+    Returns ten gr.update() payloads matching FORM_FIELD_KEYS.
+    """
+    if file_obj is None:
+        return tuple(gr.update() for _ in FORM_FIELD_KEYS)
+
+    path = Path(file_obj.name if hasattr(file_obj, "name") else str(file_obj))
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return tuple(gr.update() for _ in FORM_FIELD_KEYS)
+
+    suffix = path.suffix.lower()
+
+    if suffix == ".json":
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            data = None
+        if isinstance(data, dict):
+            game = GAMES[game_label]
+            df, _ = load_game(game)
+
+            def _coerce_enum(field, value, default):
+                if value is None:
+                    return gr.update()
+                allowed = set(df[field].dropna().unique())
+                return value if value in allowed else default
+
+            kws = data.get("keywords")
+            if isinstance(kws, list):
+                kw_text = ", ".join(str(k) for k in kws)
+            else:
+                kw_text = _parse_keywords(kws)
+
+            return (
+                gr.update(value=str(data.get("name", "")) if data.get("name") is not None else gr.update()),
+                gr.update(value=_coerce_enum("type", data.get("type"), "Attack")) if data.get("type") is not None else gr.update(),
+                gr.update(value=_coerce_enum("rarity", data.get("rarity"), "Common")) if data.get("rarity") is not None else gr.update(),
+                gr.update(value=_coerce_enum("color", data.get("color"), "ironclad")) if data.get("color") is not None else gr.update(),
+                gr.update(value=_cost_raw_to_display(data.get("cost"))) if data.get("cost") is not None else gr.update(),
+                gr.update(value=str(data.get("description", ""))) if data.get("description") is not None else gr.update(),
+                gr.update(value=str(data.get("description_upgraded", ""))) if data.get("description_upgraded") is not None else gr.update(),
+                gr.update(value=kw_text) if data.get("keywords") is not None else gr.update(),
+                gr.update(value=float(data["damage"])) if data.get("damage") is not None else gr.update(),
+                gr.update(value=float(data["block"])) if data.get("block") is not None else gr.update(),
+            )
+
+    # .txt / .md / unrecognized: dump the file content into the description
+    # field. Trim to the same 1500-char hard cap the analyze handler enforces
+    # so the user sees what will actually be used.
+    desc_text = text.strip()[:1500]
+    return (
+        gr.update(),  # name
+        gr.update(),  # type_
+        gr.update(),  # rarity
+        gr.update(),  # color
+        gr.update(),  # cost
+        gr.update(value=desc_text),  # description
+        gr.update(),  # description_upgraded
+        gr.update(),  # keywords
+        gr.update(),  # damage
+        gr.update(),  # block
+    )
+
+
+# ---------------------------------------------------------------------------
 # UI build
 # ---------------------------------------------------------------------------
 
@@ -272,6 +414,42 @@ def make_demo() -> gr.Blocks:
                     value=GAME_LABELS[initial_game],
                     label="Compare against",
                 )
+
+                with gr.Row():
+                    randomize_btn = gr.Button("🎲 Randomize", size="sm")
+                    upload_file = gr.File(
+                        label="Upload card",
+                        file_types=[".json", ".txt", ".md"],
+                        file_count="single",
+                        type="filepath",
+                        height=80,
+                    )
+
+                with gr.Accordion("Upload format", open=False):
+                    gr.Markdown(
+                        "**JSON file** with any of these keys (all optional):\n"
+                        "```json\n"
+                        "{\n"
+                        '  "name": "Phantom Strike",\n'
+                        '  "type": "Attack",\n'
+                        '  "rarity": "Common",\n'
+                        '  "color": "ironclad",\n'
+                        '  "cost": "1",\n'
+                        '  "description": "Deal 8 damage. Apply 2 Vulnerable.",\n'
+                        '  "description_upgraded": "Deal 11 damage. Apply 3 Vulnerable.",\n'
+                        '  "keywords": ["Exhaust"],\n'
+                        '  "damage": 8,\n'
+                        '  "block": null\n'
+                        "}\n"
+                        "```\n"
+                        "Missing fields keep their current form values. Cost values "
+                        "of `\"-1\"`/`-1` map to *X*; `\"-2\"`/`-2` to *Unplayable*; "
+                        "`\"\"` to *Costless*.\n\n"
+                        "**`.txt` or `.md` file:** the entire content goes into the "
+                        "Description field (trimmed to 1500 chars). Other fields "
+                        "left as-is."
+                    )
+
                 name = gr.Textbox(label="Name", placeholder="e.g. Phantom Strike", max_lines=1)
                 type_ = gr.Dropdown(choices=opts["type"], value="Attack", label="Type")
                 rarity = gr.Dropdown(choices=opts["rarity"], value="Common", label="Rarity")
@@ -318,6 +496,22 @@ def make_demo() -> gr.Blocks:
             fn=_on_game_change,
             inputs=[game, type_, rarity, color],
             outputs=[type_, rarity, color, cost],
+        )
+
+        form_outputs = [name, type_, rarity, color, cost,
+                        description, description_upgraded, keywords,
+                        damage, block]
+
+        randomize_btn.click(
+            fn=randomize,
+            inputs=game,
+            outputs=form_outputs,
+        )
+
+        upload_file.change(
+            fn=load_card_file,
+            inputs=[upload_file, game],
+            outputs=form_outputs,
         )
 
         analyze_btn.click(
