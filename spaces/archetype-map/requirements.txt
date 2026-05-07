@@ -1,0 +1,6 @@
+gradio>=5.0
+datasets>=2.20
+pandas>=2.1
+pyarrow>=15.0
+numpy>=1.26
+plotly>=5.20
