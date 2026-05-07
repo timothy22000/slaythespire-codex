@@ -2,7 +2,7 @@
 license: cc-by-4.0
 language:
 - en
-pretty_name: Slay the Spire 2 — Card Embeddings
+pretty_name: "Slay the Spire 2: Card Embeddings"
 size_categories:
 - n<1K
 task_categories:
@@ -22,16 +22,16 @@ configs:
   data_files: embeddings.parquet
 ---
 
-# Slay the Spire 2 — Card Embeddings
+# Slay the Spire 2: Card Embeddings
 
-1024-D unit-normalized text embeddings for every card in **Slay the Spire 2** (Early Access), produced by *inference* with the pretrained [`Qwen/Qwen3-Embedding-0.6B`](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B) (frozen — no fine-tuning was done to generate this dataset).
+1024-D unit-normalized text embeddings for every card in **Slay the Spire 2** (Early Access), produced by *inference* with the pretrained [`Qwen/Qwen3-Embedding-0.6B`](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B) (frozen, no fine-tuning was done to generate this dataset). **Collected for ML/DL training:** drop directly into a retriever, similarity index, or downstream model that consumes pre-encoded vectors.
 
 This is the **embeddings** dataset. For card metadata (name, cost, description, derived features), see the companion dataset:
-**[`t22000t/slay-the-spire-2-cards`](https://huggingface.co/datasets/t22000t/slay-the-spire-2-cards)** — joinable to this dataset by `id`.
+**[`t22000t/slay-the-spire-2-cards`](https://huggingface.co/datasets/t22000t/slay-the-spire-2-cards)**, joinable to this dataset by `id`.
 
 For Slay the Spire 1 embeddings, see **[`t22000t/slay-the-spire-1-card-embeddings`](https://huggingface.co/datasets/t22000t/slay-the-spire-1-card-embeddings)**. Vectors from both games share the same model and instruction prompt, so they're directly comparable for cross-game similarity search.
 
-> ⚠️ **Early Access — content is unstable.** STS2 cards change with patches. When the cards dataset is refreshed, this embedding dataset is re-built and re-uploaded. Always check `provenance.json` for the snapshot version and embedding date.
+> ⚠️ **Early Access, content is unstable.** STS2 cards change with patches. When the cards dataset is refreshed, this embedding dataset is re-built and re-uploaded. Always check `provenance.json` for the snapshot version and embedding date.
 
 ## Dataset Description
 
@@ -45,7 +45,7 @@ For Slay the Spire 1 embeddings, see **[`t22000t/slay-the-spire-1-card-embedding
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `id` | string | Card identifier — **the join key to the cards dataset** |
+| `id` | string | Card identifier, **the join key to the cards dataset** |
 | `game` | string | Always `"sts2"` |
 | `name` | string | Display name (kept for convenience) |
 | `card_text` | string | The prettified-JSON card document fed to the embedder |
@@ -96,7 +96,7 @@ df = embs.merge(cards, on="id", suffixes=("", "_card"))
 
 ### Patch drift
 
-This dataset reflects the STS2 cards in the snapshot the embedding model was run against. After a patch, both the cards repo and this embeddings repo get rebuilt. **Use the `provenance.json` to align snapshots** — never assume a specific embedding still corresponds to its current card text.
+This dataset reflects the STS2 cards in the snapshot the embedding model was run against. After a patch, both the cards repo and this embeddings repo get rebuilt. **Use the `provenance.json` to align snapshots**, never assume a specific embedding still corresponds to its current card text.
 
 ### Discussion of Biases
 
@@ -105,7 +105,7 @@ The embeddings inherit the biases of `Qwen/Qwen3-Embedding-0.6B`. STS2-specific 
 ### Other Known Limitations
 
 - **English only.**
-- **Quality not yet formally evaluated** on a card-pair benchmark — on the project roadmap.
+- **Quality not yet formally evaluated** on a card-pair benchmark, on the project roadmap.
 
 ## Provenance
 
@@ -115,7 +115,7 @@ A `provenance.json` ships with this dataset recording the embedding model id, th
 
 ```bibtex
 @dataset{sts2_card_embeddings_dataset,
-  title = {Slay the Spire 2 — Card Embeddings},
+  title = {Slay the Spire 2: Card Embeddings},
   author = {timothy22000},
   year = {2026},
   url = {https://huggingface.co/datasets/t22000t/slay-the-spire-2-card-embeddings},
@@ -126,5 +126,5 @@ A `provenance.json` ships with this dataset recording the embedding model id, th
 ## Licensing
 
 - **Dataset:** [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
-- **Pipeline code:** MIT — see [github.com/timothy22000/slaythespire-codex](https://github.com/timothy22000/slaythespire-codex)
+- **Pipeline code:** MIT, see [github.com/timothy22000/slaythespire-codex](https://github.com/timothy22000/slaythespire-codex)
 - **Game IP:** Slay the Spire 2 is © [Mega Crit](https://www.megacrit.com/).

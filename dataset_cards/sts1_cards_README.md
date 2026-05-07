@@ -2,7 +2,7 @@
 license: cc-by-4.0
 language:
 - en
-pretty_name: Slay the Spire 1 — Cards
+pretty_name: "Slay the Spire 1: Cards"
 size_categories:
 - n<1K
 task_categories:
@@ -19,12 +19,12 @@ configs:
   data_files: cards.parquet
 ---
 
-# Slay the Spire 1 — Cards
+# Slay the Spire 1: Cards
 
-A normalized dataset of every card in **Slay the Spire** (the original 2019 release), with derived feature columns for damage, block, status effects, and mechanics.
+A normalized dataset of every card in **Slay the Spire** (the original 2019 release), with derived feature columns for damage, block, status effects, and mechanics. **Collected for ML/DL training:** load with `datasets.load_dataset(...)` and feed straight into a card-text classifier, deckbuilder simulator, or design-analysis model.
 
 This is the **cards** dataset. For text embeddings of these cards, see the companion dataset:
-**[`t22000t/slay-the-spire-1-card-embeddings`](https://huggingface.co/datasets/t22000t/slay-the-spire-1-card-embeddings)** — joinable to this dataset by `id`.
+**[`t22000t/slay-the-spire-1-card-embeddings`](https://huggingface.co/datasets/t22000t/slay-the-spire-1-card-embeddings)**, joinable to this dataset by `id`.
 
 For Slay the Spire 2, see **[`t22000t/slay-the-spire-2-cards`](https://huggingface.co/datasets/t22000t/slay-the-spire-2-cards)**.
 
@@ -38,7 +38,7 @@ For Slay the Spire 2, see **[`t22000t/slay-the-spire-2-cards`](https://huggingfa
 
 ### Why split from embeddings?
 
-People doing card-text classification, deckbuilder simulators, or design analysis don't need the embedding column — and shipping it would mean a 4MB file instead of 200KB. The split also lets the embedding repo re-version independently when the embedding model changes, without touching the cards repo's commit history.
+People doing card-text classification, deckbuilder simulators, or design analysis don't need the embedding column, and shipping it would mean a 4MB file instead of 200KB. The split also lets the embedding repo re-version independently when the embedding model changes, without touching the cards repo's commit history.
 
 ## Data Fields
 
@@ -47,11 +47,11 @@ People doing card-text classification, deckbuilder simulators, or design analysi
 | Field | Type | Description |
 | --- | --- | --- |
 | `game` | string | Always `"sts1"` |
-| `id` | string | Stable card identifier — **the join key to the embeddings dataset** |
+| `id` | string | Stable card identifier, **the join key to the embeddings dataset** |
 | `name` | string | Display name |
 | `type` | string | `Attack`, `Skill`, `Power`, `Status`, or `Curse` |
 | `rarity` | string | One of `Basic`, `Common`, `Uncommon`, `Rare`, `Special`, `Curse` (Title Case) |
-| `color` | string | Character class — one of `ironclad`, `silent`, `defect`, `watcher`, plus `colorless` and `curse` (lowercase, as emitted by the upstream API) |
+| `color` | string | Character class, one of `ironclad`, `silent`, `defect`, `watcher`, plus `colorless` and `curse` (lowercase, as emitted by the upstream API) |
 | `cost` | string | Energy cost (`"0"`, `"1"`, `"X"`, `"-"` for unplayable) |
 | `description` | string | Card text, base form |
 | `description_upgraded` | string | Card text after upgrade (`+`) |
@@ -107,8 +107,8 @@ The derived feature columns are extracted via best-effort regex. Cards with non-
 ### Other Known Limitations
 
 - **English only** in this snapshot. The upstream pipeline supports 13 languages but multilingual data is not currently shipped.
-- **Card text only** — no card art, audio, or other media.
-- STS1 has been stable since its 1.0 release, so drift is minimal — but check `provenance.json` for the fetch date if you need certainty.
+- **Card text only**, no card art, audio, or other media.
+- STS1 has been stable since its 1.0 release, so drift is minimal, but check `provenance.json` for the fetch date if you need certainty.
 
 ## Provenance
 
@@ -118,7 +118,7 @@ A `provenance.json` ships alongside the data file documenting the exact fetch so
 
 ```bibtex
 @dataset{sts1_cards_dataset,
-  title = {Slay the Spire 1 — Cards},
+  title = {Slay the Spire 1: Cards},
   author = {timothy22000},
   year = {2026},
   url = {https://huggingface.co/datasets/t22000t/slay-the-spire-1-cards},
@@ -129,5 +129,5 @@ A `provenance.json` ships alongside the data file documenting the exact fetch so
 ## Licensing
 
 - **Dataset (this repository):** [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
-- **Pipeline code:** MIT — see [github.com/timothy22000/slaythespire-codex](https://github.com/timothy22000/slaythespire-codex)
+- **Pipeline code:** MIT, see [github.com/timothy22000/slaythespire-codex](https://github.com/timothy22000/slaythespire-codex)
 - **Game IP:** Slay the Spire is © [Mega Crit](https://www.megacrit.com/). This dataset contains factual reference data and includes no card art or proprietary creative assets. If Mega Crit objects to redistribution, the dataset will be taken down.

@@ -2,7 +2,7 @@
 license: cc-by-4.0
 language:
 - en
-pretty_name: Slay the Spire 2 — Cards
+pretty_name: "Slay the Spire 2: Cards"
 size_categories:
 - n<1K
 task_categories:
@@ -21,16 +21,16 @@ configs:
   data_files: cards.parquet
 ---
 
-# Slay the Spire 2 — Cards
+# Slay the Spire 2: Cards
 
-A normalized dataset of every card in **Slay the Spire 2** (Early Access), with derived feature columns including STS2-specific Orb, Forge, and Soul mechanics.
+A normalized dataset of every card in **Slay the Spire 2** (Early Access), with derived feature columns including STS2-specific Orb, Forge, and Soul mechanics. **Collected for ML/DL training:** load with `datasets.load_dataset(...)` and feed straight into a card-text classifier, deckbuilder simulator, or design-analysis model.
 
 This is the **cards** dataset. For text embeddings of these cards, see the companion dataset:
-**[`t22000t/slay-the-spire-2-card-embeddings`](https://huggingface.co/datasets/t22000t/slay-the-spire-2-card-embeddings)** — joinable to this dataset by `id`.
+**[`t22000t/slay-the-spire-2-card-embeddings`](https://huggingface.co/datasets/t22000t/slay-the-spire-2-card-embeddings)**, joinable to this dataset by `id`.
 
 For Slay the Spire 1, see **[`t22000t/slay-the-spire-1-cards`](https://huggingface.co/datasets/t22000t/slay-the-spire-1-cards)**.
 
-> ⚠️ **Early Access — content is unstable.** Slay the Spire 2 entered Early Access on March 5, 2026. Cards are added, removed, and rebalanced regularly. **Always check the `sts_game_version` field in `provenance.json`** before drawing comparisons across snapshots.
+> ⚠️ **Early Access, content is unstable.** Slay the Spire 2 entered Early Access on March 5, 2026. Cards are added, removed, and rebalanced regularly. **Always check the `sts_game_version` field in `provenance.json`** before drawing comparisons across snapshots.
 
 ## Dataset Description
 
@@ -51,7 +51,7 @@ Card-text classification, design analysis, modding, and deckbuilder simulators d
 | Field | Type | Description |
 | --- | --- | --- |
 | `game` | string | Always `"sts2"` |
-| `id` | string | Stable card identifier — **the join key to the embeddings dataset** |
+| `id` | string | Stable card identifier, **the join key to the embeddings dataset** |
 | `name` | string | Display name |
 | `type` | string | One of `Attack`, `Skill`, `Power`, `Status`, `Curse`, `Quest` |
 | `rarity` | string | One of `Basic`, `Common`, `Uncommon`, `Rare`, `Special`, `Curse`, `Status`, `Ancient`, `Event`, `Quest`, `Token` (Title Case) |
@@ -120,7 +120,7 @@ df = cards.merge(embs[["id", "embedding"]], on="id", how="inner")
 
 ## Considerations for Using the Data
 
-### Early Access Drift — the most important caveat
+### Early Access Drift, the most important caveat
 
 STS2 cards change frequently. A snapshot from one week may contain cards that no longer exist, missing cards added since, or rebalanced versions of existing cards. **Always read `provenance.json` to know which patch this snapshot reflects.** Don't compare numerical analyses across snapshots without aligning on game version.
 
@@ -131,21 +131,21 @@ The derived feature columns are extracted via best-effort regex tuned for Englis
 ### Other Known Limitations
 
 - **English only** in this snapshot.
-- **Card text only** — no card art, audio, or other media.
-- **Patch drift** — see above.
+- **Card text only**, no card art, audio, or other media.
+- **Patch drift**, see above.
 
 ## Provenance
 
 The `provenance.json` records:
-- `sts_game_version` — the STS2 Steam version at fetch time
-- `source_fetched_at` — UTC timestamp
+- `sts_game_version`: the STS2 Steam version at fetch time
+- `source_fetched_at`: UTC timestamp
 - model and pipeline metadata
 
 ## Citation
 
 ```bibtex
 @dataset{sts2_cards_dataset,
-  title = {Slay the Spire 2 — Cards},
+  title = {Slay the Spire 2: Cards},
   author = {timothy22000},
   year = {2026},
   url = {https://huggingface.co/datasets/t22000t/slay-the-spire-2-cards},
@@ -156,5 +156,5 @@ The `provenance.json` records:
 ## Licensing
 
 - **Dataset:** [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
-- **Pipeline code:** MIT — see [github.com/timothy22000/slaythespire-codex](https://github.com/timothy22000/slaythespire-codex)
+- **Pipeline code:** MIT, see [github.com/timothy22000/slaythespire-codex](https://github.com/timothy22000/slaythespire-codex)
 - **Game IP:** Slay the Spire 2 is © [Mega Crit](https://www.megacrit.com/).
