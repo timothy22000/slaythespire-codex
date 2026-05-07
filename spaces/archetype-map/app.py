@@ -110,7 +110,7 @@ def make_demo() -> gr.Blocks:
     sts2_colors = sorted(df2["color"].dropna().unique().tolist())
     sts2_types = sorted(df2["type"].dropna().unique().tolist())
 
-    with gr.Blocks(title="Slay the Spire Archetype Map", theme=gr.themes.Soft()) as demo:
+    with gr.Blocks(title="Slay the Spire Archetype Map") as demo:
         gr.Markdown(
             "# Slay the Spire Archetype Map\n"
             "Every card in **Slay the Spire 1 + 2** projected to 2D via UMAP "
@@ -189,4 +189,4 @@ def make_demo() -> gr.Blocks:
 demo = make_demo()
 
 if __name__ == "__main__":
-    demo.launch()
+    demo.launch(theme=gr.themes.Soft())
