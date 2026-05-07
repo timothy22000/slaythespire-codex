@@ -109,43 +109,106 @@ def _build_doc_dict(name, type_, rarity, color, cost_display, description,
     }
 
 
-def _similarity_banner(top_match_name: str, sim: float) -> tuple[str, str]:
-    """Return (markdown, severity) for the similarity verdict banner."""
+import html as _html
+
+
+# Tier styling: (css class, headline, supporting copy template, dot color)
+_TIER_STYLES = {
+    "strong": ("synergy-tier-strong", "Near-identical match",
+               "Your card is effectively a re-skin of an existing one."),
+    "soft": ("synergy-tier-soft", "Strong overlap",
+             "Players may feel this is a variant rather than a new card."),
+    "neutral": ("synergy-tier-neutral", "Similar but distinct",
+                "Distinct enough to feel original."),
+    "novel": ("synergy-tier-novel", "No close match",
+              "Your card occupies its own niche."),
+}
+
+
+def _similarity_severity(sim: float) -> str:
     if sim >= SIM_TIER_IDENTICAL:
-        return (
-            f"### 🔴 Near-identical to **{top_match_name}**  \n"
-            f"_Cosine similarity: {sim:.3f}_ — your card is effectively a re-skin.",
-            "strong",
-        )
+        return "strong"
     if sim >= SIM_TIER_VERY:
-        return (
-            f"### 🟠 Strong overlap with **{top_match_name}**  \n"
-            f"_Cosine similarity: {sim:.3f}_ — players may feel this is a "
-            f"variant rather than a new card.",
-            "soft",
-        )
+        return "soft"
     if sim >= SIM_TIER_SIMILAR:
-        return (
-            f"### ⚪ Closest match: **{top_match_name}**  \n"
-            f"_Cosine similarity: {sim:.3f}_ — distinct enough to feel original.",
-            "neutral",
-        )
-    return (
-        f"### 🟢 No close match  \n"
-        f"_Closest is **{top_match_name}** at {sim:.3f}_ — your card occupies "
-        f"its own niche.",
-        "novel",
-    )
+        return "neutral"
+    return "novel"
 
 
-def _outlier_banner(warnings: list[dict]) -> str:
+def _similarity_banner_html(top_match: pd.Series, sim: float) -> str:
+    """Render the verdict banner as HTML with the top match highlighted as a card."""
+    sev = _similarity_severity(sim)
+    cls, headline, blurb = _TIER_STYLES[sev]
+
+    name = _html.escape(str(top_match.get("name", "Unknown")))
+    type_ = _html.escape(str(top_match.get("type", "")))
+    cost = _html.escape(str(top_match.get("cost", "")))
+    color = _html.escape(str(top_match.get("color", "")))
+    rarity = _html.escape(str(top_match.get("rarity", "")))
+    desc = _html.escape(str(top_match.get("description", "")) or "")
+    cost_label = "X" if cost == "-1" else ("Unplayable" if cost == "-2" else (cost or "—"))
+
+    return f"""
+<div class="synergy-banner {cls}">
+  <div class="synergy-banner-headline">{headline}</div>
+  <div class="synergy-banner-blurb">{blurb}</div>
+  <div class="synergy-featured-card">
+    <div class="synergy-featured-row">
+      <div class="synergy-featured-name">{name}</div>
+      <div class="synergy-featured-sim">cosine {sim:.3f}</div>
+    </div>
+    <div class="synergy-featured-meta">
+      <span>{type_ or '—'}</span>
+      <span class="synergy-divider">·</span>
+      <span>{rarity or '—'}</span>
+      <span class="synergy-divider">·</span>
+      <span>{color or '—'}</span>
+      <span class="synergy-divider">·</span>
+      <span>cost {cost_label}</span>
+    </div>
+    <div class="synergy-featured-desc">{desc or '<i>(no description)</i>'}</div>
+  </div>
+</div>
+""".strip()
+
+
+def _outlier_banner_html(warnings: list[dict]) -> str:
     if not warnings:
         return ""
-    lines = ["### Outlier check"]
-    for w in warnings:
-        emoji = {"strong": "⚠️", "soft": "⚡", "info": "ℹ️"}.get(w["severity"], "•")
-        lines.append(f"- {emoji} {w['message']}")
-    return "\n".join(lines)
+    cls_for = {"strong": "synergy-outlier-strong",
+               "soft": "synergy-outlier-soft",
+               "info": "synergy-outlier-info"}
+    icon_for = {"strong": "⚠", "soft": "⚡", "info": "ℹ"}
+    items = "".join(
+        f'<div class="synergy-outlier-item {cls_for.get(w["severity"], "synergy-outlier-info")}">'
+        f'<span class="synergy-outlier-icon">{icon_for.get(w["severity"], "•")}</span>'
+        f'<span>{_html.escape(w["message"])}</span>'
+        f'</div>'
+        for w in warnings
+    )
+    return f'<div class="synergy-outliers"><div class="synergy-section-label">Outlier check</div>{items}</div>'
+
+
+def _empty_state_html() -> str:
+    return """
+<div class="synergy-empty">
+  <div class="synergy-empty-icon">✨</div>
+  <div class="synergy-empty-title">Submit a card on the left to analyze</div>
+  <div class="synergy-empty-tip">
+    New here? Click <b>🎲 Randomize</b> to load an existing card and see what
+    a result looks like, then edit it to test your own ideas.
+  </div>
+</div>
+""".strip()
+
+
+def _error_banner_html(message: str) -> str:
+    return (
+        f'<div class="synergy-error">'
+        f'<span class="synergy-error-icon">✕</span>'
+        f'<span>{_html.escape(message)}</span>'
+        f'</div>'
+    )
 
 
 def analyze(
@@ -166,16 +229,16 @@ def analyze(
     progress(0, desc="Validating...")
     ok, err = _validate(name, type_, rarity, color, cost_display, description, keywords)
     if not ok:
-        return f"### ❌ {err}", "", pd.DataFrame()
+        return _error_banner_html(err), "", pd.DataFrame()
 
     game = GAMES[game_label]
     df, emb = load_game(game)
 
-    # Color must be valid for the chosen game (Dropdown enforces this in normal
-    # use; defensive check for completeness).
     if color not in df["color"].unique():
         return (
-            f"### ❌ Color {color!r} not found in {game.upper()}; pick from the dropdown.",
+            _error_banner_html(
+                f"Color {color!r} not found in {game.upper()}; pick from the dropdown."
+            ),
             "",
             pd.DataFrame(),
         )
@@ -199,11 +262,15 @@ def analyze(
     blk = float(block) if block not in (None, "") and not pd.isna(block) else None
     warnings = check_outliers(game, type_, cost_raw, dmg, blk)
 
-    progress(1.0, desc="Done")
+    # The featured card needs the full row (color, rarity, etc.); the dataframe
+    # only carries a projection. Look up the full row by id where possible.
     top = neighbors.iloc[0]
-    sim_md, _ = _similarity_banner(top["name"], float(top["similarity"]))
-    outlier_md = _outlier_banner(warnings)
-    return sim_md, outlier_md, neighbors
+    full_top = df[df["name"] == top["name"]].iloc[0] if (df["name"] == top["name"]).any() else top
+
+    progress(1.0, desc="Done")
+    sim_html = _similarity_banner_html(full_top, float(top["similarity"]))
+    outlier_html = _outlier_banner_html(warnings)
+    return sim_html, outlier_html, neighbors
 
 
 # ---------------------------------------------------------------------------
@@ -386,28 +453,171 @@ def load_card_file(file_obj, game_label: str):
 # UI build
 # ---------------------------------------------------------------------------
 
+CUSTOM_CSS = """
+.gradio-container { max-width: 1240px !important; margin: 0 auto !important; }
+
+/* Header */
+.synergy-hero {
+  padding: 18px 0 6px 0;
+  border-bottom: 1px solid var(--border-color-primary);
+  margin-bottom: 16px;
+}
+.synergy-hero h1 {
+  margin: 0 0 6px 0;
+  font-size: 26px;
+  letter-spacing: -0.01em;
+}
+.synergy-hero p {
+  margin: 0;
+  color: var(--body-text-color-subdued);
+  font-size: 14px;
+  line-height: 1.5;
+  max-width: 70ch;
+}
+
+/* Section labels */
+.synergy-section-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--body-text-color-subdued);
+  margin: 8px 0 6px 2px;
+}
+
+/* Verdict banner */
+.synergy-banner {
+  padding: 18px 22px;
+  border-radius: 12px;
+  border-left-width: 6px;
+  border-left-style: solid;
+  margin-bottom: 14px;
+  background-clip: padding-box;
+}
+.synergy-tier-strong { border-left-color: #dc2626; background: #fef2f2; }
+.synergy-tier-soft   { border-left-color: #ea580c; background: #fff7ed; }
+.synergy-tier-neutral{ border-left-color: #6b7280; background: #f9fafb; }
+.synergy-tier-novel  { border-left-color: #16a34a; background: #f0fdf4; }
+.dark .synergy-tier-strong { background: rgba(220,38,38,0.10); }
+.dark .synergy-tier-soft   { background: rgba(234,88,12,0.10); }
+.dark .synergy-tier-neutral{ background: rgba(107,114,128,0.10); }
+.dark .synergy-tier-novel  { background: rgba(22,163,74,0.10); }
+
+.synergy-banner-headline { font-size: 18px; font-weight: 600; color: var(--body-text-color); }
+.synergy-banner-blurb    { font-size: 14px; color: var(--body-text-color-subdued); margin: 4px 0 14px 0; }
+
+/* Featured top-match card */
+.synergy-featured-card {
+  background: var(--background-fill-primary);
+  border: 1px solid var(--border-color-primary);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.synergy-featured-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.synergy-featured-name { font-size: 18px; font-weight: 600; }
+.synergy-featured-sim {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: var(--body-text-color-subdued);
+  background: var(--background-fill-secondary);
+  padding: 3px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.synergy-featured-meta {
+  display: flex; gap: 6px; flex-wrap: wrap;
+  margin: 6px 0 10px 0;
+  font-size: 13px; color: var(--body-text-color-subdued);
+}
+.synergy-divider { opacity: 0.4; }
+.synergy-featured-desc {
+  font-size: 14px; line-height: 1.5;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color-accent-subdued);
+}
+
+/* Outlier callouts */
+.synergy-outliers { margin-bottom: 16px; }
+.synergy-outlier-item {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  margin-bottom: 6px;
+  font-size: 14px; line-height: 1.5;
+  border-left-width: 4px; border-left-style: solid;
+}
+.synergy-outlier-strong { border-left-color: #dc2626; background: #fef2f2; }
+.synergy-outlier-soft   { border-left-color: #ca8a04; background: #fefce8; }
+.synergy-outlier-info   { border-left-color: #0284c7; background: #f0f9ff; }
+.dark .synergy-outlier-strong { background: rgba(220,38,38,0.10); }
+.dark .synergy-outlier-soft   { background: rgba(202,138,4,0.10); }
+.dark .synergy-outlier-info   { background: rgba(2,132,199,0.10); }
+.synergy-outlier-icon { flex: 0 0 auto; font-size: 16px; line-height: 1.4; }
+
+/* Empty state */
+.synergy-empty {
+  padding: 48px 24px;
+  text-align: center;
+  background: var(--background-fill-secondary);
+  border: 2px dashed var(--border-color-primary);
+  border-radius: 14px;
+}
+.synergy-empty-icon { font-size: 28px; margin-bottom: 10px; }
+.synergy-empty-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+.synergy-empty-tip   { font-size: 14px; color: var(--body-text-color-subdued); max-width: 48ch; margin: 0 auto; line-height: 1.5; }
+
+/* Error banner */
+.synergy-error {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 18px; border-radius: 10px;
+  background: #fef2f2; color: #991b1b;
+  border-left: 4px solid #dc2626;
+  font-size: 14px;
+}
+.synergy-error-icon {
+  font-weight: 700; font-size: 14px;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: #dc2626; color: white;
+  display: flex; align-items: center; justify-content: center;
+}
+.dark .synergy-error { background: rgba(220,38,38,0.10); color: #fca5a5; }
+
+/* Form group spacing */
+.synergy-form-group { margin-bottom: 4px; }
+
+/* Footer */
+.synergy-footer {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color-primary);
+  font-size: 12px;
+  color: var(--body-text-color-subdued);
+}
+"""
+
+
 def make_demo() -> gr.Blocks:
     initial_game = "sts1"
     opts = _form_options(initial_game)
     cost_display_choices = _cost_display_choices(initial_game)
 
-    with gr.Blocks(title="Slay the Spire Synergy Inspector") as demo:
-        gr.Markdown(
-            "# Slay the Spire Synergy Inspector\n"
-            "Designing a custom Slay the Spire card? Drop the spec in here and "
-            "find out what existing cards it overlaps with, plus a quick stats "
-            "outlier check against the published distribution.\n\n"
-            "Encodes via the same `Qwen/Qwen3-Embedding-0.6B` model used to "
-            "produce the indexed embeddings. First analyze takes 30-60s while "
-            "the model loads; subsequent ones are ~2s.\n\n"
-            "Data: "
-            "[STS1 cards](https://huggingface.co/datasets/t22000t/slay-the-spire-1-cards) · "
-            "[STS1 embeddings](https://huggingface.co/datasets/t22000t/slay-the-spire-1-card-embeddings) · "
-            "[STS2 cards](https://huggingface.co/datasets/t22000t/slay-the-spire-2-cards) · "
-            "[STS2 embeddings](https://huggingface.co/datasets/t22000t/slay-the-spire-2-card-embeddings)"
+    with gr.Blocks(
+        title="Slay the Spire Synergy Inspector",
+        css=CUSTOM_CSS,
+    ) as demo:
+        gr.HTML(
+            '<div class="synergy-hero">'
+            '<h1>Slay the Spire Synergy Inspector</h1>'
+            '<p>Designing a custom card? Drop a spec in and find out which '
+            'existing cards it overlaps with, plus a quick stats outlier check '
+            'against the published distribution. Encodes via the same Qwen3 '
+            'embedding model used for the indexed corpus, so similarity scores '
+            'are directly comparable across cards.</p>'
+            '</div>'
         )
 
-        with gr.Row():
+        with gr.Row(equal_height=False):
+            # ---------- LEFT: form ----------
             with gr.Column(scale=2):
                 game = gr.Radio(
                     choices=list(GAMES.keys()),
@@ -415,16 +625,17 @@ def make_demo() -> gr.Blocks:
                     label="Compare against",
                 )
 
+                gr.HTML('<div class="synergy-section-label">Quick start</div>')
                 with gr.Row():
-                    randomize_btn = gr.Button("🎲 Randomize", size="sm")
+                    randomize_btn = gr.Button("🎲 Randomize", size="sm", scale=1)
                     upload_file = gr.File(
                         label="Upload card",
                         file_types=[".json", ".txt", ".md"],
                         file_count="single",
                         type="filepath",
-                        height=80,
+                        height=84,
+                        scale=2,
                     )
-
                 with gr.Accordion("Upload format", open=False):
                     gr.Markdown(
                         "**JSON file** with any of these keys (all optional):\n"
@@ -446,52 +657,65 @@ def make_demo() -> gr.Blocks:
                         "of `\"-1\"`/`-1` map to *X*; `\"-2\"`/`-2` to *Unplayable*; "
                         "`\"\"` to *Costless*.\n\n"
                         "**`.txt` or `.md` file:** the entire content goes into the "
-                        "Description field (trimmed to 1500 chars). Other fields "
-                        "left as-is."
+                        "Description field (trimmed to 1500 chars)."
                     )
 
-                name = gr.Textbox(label="Name", placeholder="e.g. Phantom Strike", max_lines=1)
-                type_ = gr.Dropdown(choices=opts["type"], value="Attack", label="Type")
-                rarity = gr.Dropdown(choices=opts["rarity"], value="Common", label="Rarity")
-                color = gr.Dropdown(choices=opts["color"], value="ironclad", label="Color / class")
-                cost = gr.Dropdown(
-                    choices=cost_display_choices,
-                    value=_default_value(cost_display_choices, "1"),
-                    label="Cost",
-                    info="X = scales with energy; Unplayable = curse/status",
-                )
-                description = gr.Textbox(
-                    label="Description",
-                    placeholder="Deal 8 damage. Apply 2 Vulnerable.",
-                    lines=4,
-                    max_lines=8,
-                )
-                with gr.Accordion("Upgraded text (optional)", open=False):
-                    description_upgraded = gr.Textbox(
-                        label="Upgraded description",
-                        placeholder="Deal 11 damage. Apply 3 Vulnerable.",
-                        lines=2,
+                gr.HTML('<div class="synergy-section-label">Card basics</div>')
+                with gr.Group():
+                    name = gr.Textbox(label="Name", placeholder="e.g. Phantom Strike", max_lines=1)
+                    with gr.Row():
+                        type_ = gr.Dropdown(choices=opts["type"], value="Attack", label="Type")
+                        cost = gr.Dropdown(
+                            choices=cost_display_choices,
+                            value=_default_value(cost_display_choices, "1"),
+                            label="Cost",
+                            info="X scales with energy",
+                        )
+                    with gr.Row():
+                        rarity = gr.Dropdown(choices=opts["rarity"], value="Common", label="Rarity")
+                        color = gr.Dropdown(choices=opts["color"], value="ironclad", label="Class")
+
+                gr.HTML('<div class="synergy-section-label">Card text</div>')
+                with gr.Group():
+                    description = gr.Textbox(
+                        label="Description",
+                        placeholder="Deal 8 damage. Apply 2 Vulnerable.",
+                        lines=4,
+                        max_lines=8,
                     )
-                keywords = gr.Textbox(
-                    label="Keywords",
-                    placeholder="comma-separated, e.g. Exhaust, Innate",
-                )
-                with gr.Accordion("Numeric stats (optional, for outlier check)", open=True):
-                    damage = gr.Number(label="Damage", precision=0, minimum=0, maximum=99, value=None)
-                    block = gr.Number(label="Block", precision=0, minimum=0, maximum=99, value=None)
+                    keywords = gr.Textbox(
+                        label="Keywords",
+                        placeholder="comma-separated, e.g. Exhaust, Innate",
+                    )
+                    with gr.Accordion("Upgraded text (optional)", open=False):
+                        description_upgraded = gr.Textbox(
+                            label="Upgraded description",
+                            placeholder="Deal 11 damage. Apply 3 Vulnerable.",
+                            lines=2,
+                        )
 
-                analyze_btn = gr.Button("Analyze", variant="primary")
+                gr.HTML('<div class="synergy-section-label">Stats <span style="opacity:0.6;font-weight:400;text-transform:none;">(optional, for outlier check)</span></div>')
+                with gr.Group():
+                    with gr.Row():
+                        damage = gr.Number(label="Damage", precision=0, minimum=0, maximum=99, value=None)
+                        block = gr.Number(label="Block", precision=0, minimum=0, maximum=99, value=None)
 
+                analyze_btn = gr.Button("Analyze →", variant="primary", size="lg")
+
+            # ---------- RIGHT: result ----------
             with gr.Column(scale=3):
-                sim_banner = gr.Markdown("_Submit a card on the left to analyze._")
-                outlier_banner = gr.Markdown("")
-                gr.Markdown("### Closest existing cards")
+                gr.HTML('<div class="synergy-section-label">Verdict</div>')
+                sim_banner = gr.HTML(_empty_state_html())
+                outlier_banner = gr.HTML("")
+                gr.HTML('<div class="synergy-section-label">Closest existing cards</div>')
                 neighbors = gr.Dataframe(
                     headers=["similarity", "name", "type", "rarity", "cost", "color", "description"],
                     interactive=False,
                     wrap=True,
+                    row_count=(0, "dynamic"),
                 )
 
+        # ---------- Event wiring ----------
         game.change(
             fn=_on_game_change,
             inputs=[game, type_, rarity, color],
@@ -521,12 +745,18 @@ def make_demo() -> gr.Blocks:
             outputs=[sim_banner, outlier_banner, neighbors],
         )
 
-        gr.Markdown(
-            "---\n"
-            "Built with [slaythespire-codex](https://github.com/timothy22000/slaythespire-codex). "
-            "Outlier baselines and similarity thresholds are calibrated against the "
-            "indexed corpus; cards far outside the existing distribution may register "
-            "as 'novel' simply because nothing comparable exists."
+        gr.HTML(
+            '<div class="synergy-footer">'
+            'Built with <a href="https://github.com/timothy22000/slaythespire-codex">slaythespire-codex</a>. '
+            'Outlier baselines and similarity thresholds are calibrated against the indexed '
+            'corpus; cards far outside the existing distribution may register as "novel" '
+            'simply because nothing comparable exists. '
+            'Data: '
+            '<a href="https://huggingface.co/datasets/t22000t/slay-the-spire-1-cards">STS1 cards</a> · '
+            '<a href="https://huggingface.co/datasets/t22000t/slay-the-spire-1-card-embeddings">STS1 embeddings</a> · '
+            '<a href="https://huggingface.co/datasets/t22000t/slay-the-spire-2-cards">STS2 cards</a> · '
+            '<a href="https://huggingface.co/datasets/t22000t/slay-the-spire-2-card-embeddings">STS2 embeddings</a>.'
+            '</div>'
         )
 
     return demo
