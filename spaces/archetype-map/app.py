@@ -29,12 +29,16 @@ def _truncate(s: str, n: int = 80) -> str:
     return s if len(s) <= n else s[: n - 1] + "…"
 
 
+HIGHLIGHT_K = 10  # how many neighbors to highlight on the scatter
+
+
 def render_scatter(
     game: str,
     color_filter: list[str],
     type_filter: list[str],
+    highlight_name: str | None = None,
 ) -> go.Figure:
-    df, _ = load_game(game)
+    df, emb = load_game(game)
     mask = pd.Series(True, index=df.index)
     if color_filter:
         mask &= df["color"].isin(color_filter)
@@ -52,23 +56,91 @@ def render_scatter(
         fig.update_layout(height=600, title=f"{GAME_LABELS[game]}: 0 cards")
         return fig
 
+    title = f"{GAME_LABELS[game]}: {len(sub)} of {len(df)} cards"
+    if highlight_name:
+        title += f" · highlighting top-{HIGHLIGHT_K} similar to “{highlight_name}”"
+
     fig = px.scatter(
         sub,
         x="umap_x",
         y="umap_y",
         color="color",
         custom_data=["name", "type", "rarity", "cost", "short_desc"],
-        title=f"{GAME_LABELS[game]}: {len(sub)} of {len(df)} cards",
+        title=title,
         height=600,
     )
+    base_opacity = 0.85 if not highlight_name else 0.15
     fig.update_traces(
-        marker=dict(size=8, line=dict(width=0.5, color="white"), opacity=0.85),
+        marker=dict(size=8, line=dict(width=0.5, color="white"), opacity=base_opacity),
         hovertemplate=(
             "<b>%{customdata[0]}</b><br>"
             "%{customdata[1]} · %{customdata[2]} · cost %{customdata[3]}<br>"
             "%{customdata[4]}<extra></extra>"
         ),
     )
+
+    if highlight_name:
+        match = df.index[df["name"] == highlight_name]
+        if len(match):
+            picked_idx = int(match[0])
+            picked = df.iloc[picked_idx]
+            # Similarity of picked vs every card in the *filtered* pool
+            sims_full = emb @ emb[picked_idx]
+            sub_sims = sub.assign(_sim=sims_full[sub.index.values])
+            neighbors = (
+                sub_sims[sub_sims.index != picked_idx]
+                .nlargest(HIGHLIGHT_K, "_sim")
+            )
+
+            # Neighbors trace, color-graded by similarity
+            if len(neighbors):
+                fig.add_trace(
+                    go.Scatter(
+                        x=neighbors["umap_x"],
+                        y=neighbors["umap_y"],
+                        mode="markers",
+                        marker=dict(
+                            size=15,
+                            color=neighbors["_sim"],
+                            colorscale="Viridis",
+                            cmin=float(neighbors["_sim"].min()),
+                            cmax=float(neighbors["_sim"].max()),
+                            showscale=True,
+                            colorbar=dict(
+                                title="Cosine sim",
+                                x=1.02, len=0.7, thickness=12,
+                            ),
+                            line=dict(width=1.5, color="white"),
+                        ),
+                        customdata=neighbors[["name", "type", "cost", "_sim"]].values,
+                        hovertemplate=(
+                            "<b>%{customdata[0]}</b><br>"
+                            "%{customdata[1]} · cost %{customdata[2]}<br>"
+                            "sim=%{customdata[3]:.3f}<extra></extra>"
+                        ),
+                        name=f"Top {HIGHLIGHT_K} neighbors",
+                        showlegend=False,
+                    )
+                )
+
+            # Picked card on top — gold star, always visible even if filtered out
+            fig.add_trace(
+                go.Scatter(
+                    x=[picked["umap_x"]],
+                    y=[picked["umap_y"]],
+                    mode="markers",
+                    marker=dict(
+                        symbol="star",
+                        size=26,
+                        color="gold",
+                        line=dict(width=2, color="black"),
+                    ),
+                    hovertemplate=f"<b>{picked['name']}</b> (picked)<extra></extra>",
+                    name="Picked card",
+                    showlegend=False,
+                )
+            )
+
     fig.update_layout(
         legend=dict(title="Character"),
         xaxis=dict(title=None, showgrid=False, zeroline=False),
@@ -160,20 +232,28 @@ def make_demo() -> gr.Blocks:
                                     wrap=True,
                                 )
 
+                    def _on_filter_change(c, t, name, g=game):
+                        return render_scatter(g, c, t, highlight_name=name)
+
+                    def _on_pick_change(c, t, name, g=game):
+                        fig = render_scatter(g, c, t, highlight_name=name)
+                        md, nn = render_neighbors(g, name)
+                        return fig, md, nn
+
                     color_filter.change(
-                        fn=lambda c, t, g=game: render_scatter(g, c, t),
-                        inputs=[color_filter, type_filter],
+                        fn=_on_filter_change,
+                        inputs=[color_filter, type_filter, card_picker],
                         outputs=plot,
                     )
                     type_filter.change(
-                        fn=lambda c, t, g=game: render_scatter(g, c, t),
-                        inputs=[color_filter, type_filter],
+                        fn=_on_filter_change,
+                        inputs=[color_filter, type_filter, card_picker],
                         outputs=plot,
                     )
                     card_picker.change(
-                        fn=lambda name, g=game: render_neighbors(g, name),
-                        inputs=card_picker,
-                        outputs=[detail_md, neighbors_table],
+                        fn=_on_pick_change,
+                        inputs=[color_filter, type_filter, card_picker],
+                        outputs=[plot, detail_md, neighbors_table],
                     )
 
         gr.Markdown(
