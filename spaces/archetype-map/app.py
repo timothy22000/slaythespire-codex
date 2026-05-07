@@ -107,8 +107,11 @@ def render_scatter(
                             cmax=float(neighbors["_sim"].max()),
                             showscale=True,
                             colorbar=dict(
-                                title="Cosine sim",
-                                x=1.02, len=0.7, thickness=12,
+                                title=dict(text="Cosine similarity", side="top"),
+                                orientation="h",
+                                x=0.5, y=-0.08,
+                                xanchor="center", yanchor="top",
+                                len=0.45, thickness=12,
                             ),
                             line=dict(width=1.5, color="white"),
                         ),
@@ -145,7 +148,9 @@ def render_scatter(
         legend=dict(title="Character"),
         xaxis=dict(title=None, showgrid=False, zeroline=False),
         yaxis=dict(title=None, showgrid=False, zeroline=False),
-        margin=dict(l=10, r=10, t=50, b=10),
+        # Bottom margin grows when a colorbar is present so the horizontal
+        # colorbar has room without clipping the plot area.
+        margin=dict(l=10, r=10, t=50, b=80 if highlight_name else 10),
     )
     return fig
 
