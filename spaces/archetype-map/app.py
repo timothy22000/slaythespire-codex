@@ -69,7 +69,7 @@ def render_scatter(
         title=title,
         height=600,
     )
-    base_opacity = 0.85 if not highlight_name else 0.15
+    base_opacity = 0.85 if not highlight_name else 0.3
     fig.update_traces(
         marker=dict(size=8, line=dict(width=0.5, color="white"), opacity=base_opacity),
         hovertemplate=(
@@ -100,7 +100,7 @@ def render_scatter(
                         y=neighbors["umap_y"],
                         mode="markers",
                         marker=dict(
-                            size=15,
+                            size=10,
                             color=neighbors["_sim"],
                             colorscale="Viridis",
                             cmin=float(neighbors["_sim"].min()),
@@ -131,9 +131,9 @@ def render_scatter(
                     mode="markers",
                     marker=dict(
                         symbol="star",
-                        size=26,
+                        size=16,
                         color="gold",
-                        line=dict(width=2, color="black"),
+                        line=dict(width=1.5, color="black"),
                     ),
                     hovertemplate=f"<b>{picked['name']}</b> (picked)<extra></extra>",
                     name="Picked card",
