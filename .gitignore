@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+*.egg
+build/
+dist/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Testing
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.cache
+coverage.xml
+
+# Type checkers
+.mypy_cache/
+.ruff_cache/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Project outputs
+output/
+*.parquet
+*.jsonl
+*_provenance.json
+*_croissant.json
+*_umap_2d.html
+
+# But keep dataset-card-templates and CI configs
+!dataset_cards/*.md
+
+# HTTP cache
+~/.cache/sts-cards/
+
+# Secrets
+.env
+.env.local
+*.token
+
+# Claude Code
+CLAUDE.md
+.claude/
+
+# Local-only docs
+DOCUMENTATION.md
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb

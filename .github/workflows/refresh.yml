@@ -1,0 +1,136 @@
+name: Refresh dataset
+
+on:
+  workflow_dispatch:
+    inputs:
+      game:
+        description: "Which game to refresh"
+        required: true
+        type: choice
+        options:
+          - sts1
+          - sts2
+        default: sts2
+      sts_game_version:
+        description: "STS2 Steam version (recorded in provenance, e.g. v0.103.0)"
+        required: false
+        type: string
+        default: ""
+      bypass_cache:
+        description: "Bypass the HTTP cache"
+        type: boolean
+        default: true
+
+  schedule:
+    # STS1 is stable since 2019 — refresh monthly.
+    # STS2 is in active Early Access — refresh weekly on Sundays at 04:00 UTC.
+    - cron: "0 4 * * 0"          # weekly (will refresh sts2)
+    - cron: "0 4 1 * *"          # monthly on the 1st (will refresh sts1)
+
+env:
+  STS1_CARDS_REPO: t22000t/slay-the-spire-1-cards
+  STS1_EMBEDDINGS_REPO: t22000t/slay-the-spire-1-card-embeddings
+  STS2_CARDS_REPO: t22000t/slay-the-spire-2-cards
+  STS2_EMBEDDINGS_REPO: t22000t/slay-the-spire-2-card-embeddings
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install with embed + upload extras
+        run: |
+          python -m pip install --upgrade pip
+          # CPU torch — embed runs fine on the GH runner with the 0.6B model
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -e ".[embed,upload]"
+
+      - name: Resolve game and target repos
+        id: resolve
+        run: |
+          # On schedule, infer game from the cron pattern: weekly → sts2, monthly → sts1.
+          # On workflow_dispatch, use the supplied input.
+          if [ -n "${{ github.event.inputs.game }}" ]; then
+            GAME="${{ github.event.inputs.game }}"
+          elif [ "${{ github.event.schedule }}" = "0 4 1 * *" ]; then
+            GAME="sts1"
+          else
+            GAME="sts2"
+          fi
+
+          if [ "$GAME" = "sts1" ]; then
+            CARDS_REPO="${{ env.STS1_CARDS_REPO }}"
+            EMB_REPO="${{ env.STS1_EMBEDDINGS_REPO }}"
+          else
+            CARDS_REPO="${{ env.STS2_CARDS_REPO }}"
+            EMB_REPO="${{ env.STS2_EMBEDDINGS_REPO }}"
+          fi
+          echo "game=$GAME"            >> "$GITHUB_OUTPUT"
+          echo "cards_repo=$CARDS_REPO" >> "$GITHUB_OUTPUT"
+          echo "emb_repo=$EMB_REPO"     >> "$GITHUB_OUTPUT"
+
+      - name: Fetch cards
+        run: |
+          ARGS=""
+          if [ "${{ github.event.inputs.bypass_cache }}" = "true" ]; then
+            ARGS="$ARGS --no-cache"
+          fi
+          if [ -n "${{ github.event.inputs.sts_game_version }}" ]; then
+            ARGS="$ARGS --sts-game-version ${{ github.event.inputs.sts_game_version }}"
+          fi
+          sts-cards fetch ${{ steps.resolve.outputs.game }} $ARGS
+
+      - name: Embed cards
+        run: sts-cards embed ${{ steps.resolve.outputs.game }}
+
+      - name: UMAP project
+        run: sts-cards visualize ${{ steps.resolve.outputs.game }} --no-html
+
+      - name: Generate Croissant for cards
+        run: |
+          sts-cards croissant ${{ steps.resolve.outputs.game }} \
+            --kind cards --repo ${{ steps.resolve.outputs.cards_repo }}
+
+      - name: Generate Croissant for embeddings
+        run: |
+          sts-cards croissant ${{ steps.resolve.outputs.game }} \
+            --kind embeddings --repo ${{ steps.resolve.outputs.emb_repo }}
+
+      - name: Upload cards repo
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          if [ -z "$HF_TOKEN" ]; then
+            echo "::warning::HF_TOKEN secret not set — skipping cards upload"
+            exit 0
+          fi
+          sts-cards upload ${{ steps.resolve.outputs.game }} \
+            --kind cards --repo ${{ steps.resolve.outputs.cards_repo }}
+
+      - name: Upload embeddings repo
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          if [ -z "$HF_TOKEN" ]; then
+            echo "::warning::HF_TOKEN secret not set — skipping embeddings upload"
+            exit 0
+          fi
+          sts-cards upload ${{ steps.resolve.outputs.game }} \
+            --kind embeddings --repo ${{ steps.resolve.outputs.emb_repo }}
+
+      - name: Upload artifacts on failure for inspection
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: output-${{ steps.resolve.outputs.game }}
+          path: output/
+          retention-days: 7
