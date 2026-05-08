@@ -748,6 +748,30 @@ CUSTOM_CSS = """
 /* Form group spacing */
 .synergy-form-group { margin-bottom: 4px; }
 
+/* Quick-start button row: matched pair of clean, equal-width buttons. */
+.synergy-quick-row { gap: 10px !important; align-items: stretch !important; }
+.synergy-quick-btn,
+.synergy-quick-btn button,
+.synergy-quick-btn label {
+  height: 56px !important;
+  min-height: 56px !important;
+  border-radius: 12px !important;
+  font-size: 15px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.01em;
+  transition: transform 0.06s ease, box-shadow 0.12s ease, background 0.12s ease;
+}
+.synergy-quick-btn button:hover,
+.synergy-quick-btn label:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+}
+.synergy-quick-btn button:active,
+.synergy-quick-btn label:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
 /* Footer */
 .synergy-footer {
   margin-top: 24px;
@@ -789,18 +813,23 @@ def make_demo() -> gr.Blocks:
                 )
 
                 gr.HTML('<div class="synergy-section-label">Quick start</div>')
-                with gr.Row():
-                    randomize_btn = gr.Button("🎲 Randomize", size="sm", scale=1)
-                    upload_file = gr.File(
-                        label="Upload card (JSON, CSV, text, or 📸 screenshot)",
+                with gr.Row(elem_classes="synergy-quick-row"):
+                    randomize_btn = gr.Button(
+                        "🎲  Randomize",
+                        variant="secondary",
+                        scale=1,
+                        elem_classes="synergy-quick-btn",
+                    )
+                    upload_btn = gr.UploadButton(
+                        "📁  Upload card",
                         file_types=[
                             ".json", ".csv", ".txt", ".md",
                             ".png", ".jpg", ".jpeg", ".webp",
                         ],
                         file_count="single",
-                        type="filepath",
-                        height=84,
-                        scale=2,
+                        variant="secondary",
+                        scale=1,
+                        elem_classes="synergy-quick-btn",
                     )
                 with gr.Accordion("Upload formats", open=False):
                     gr.Markdown(
@@ -909,9 +938,9 @@ def make_demo() -> gr.Blocks:
             outputs=form_outputs,
         )
 
-        upload_file.change(
+        upload_btn.upload(
             fn=load_card_file,
-            inputs=[upload_file, game],
+            inputs=[upload_btn, game],
             outputs=form_outputs,
         )
 
