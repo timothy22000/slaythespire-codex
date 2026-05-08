@@ -427,19 +427,129 @@ def _on_chip_click(text: str):
 # ---------------------------------------------------------------------------
 
 CUSTOM_CSS = """
-.gradio-container { max-width: 1280px !important; margin: 0 auto !important; }
+.gradio-container { max-width: 880px !important; margin: 0 auto !important; }
 
 /* Header */
 .bmd-hero {
-  padding: 18px 0 6px 0;
-  border-bottom: 1px solid var(--border-color-primary);
-  margin-bottom: 16px;
+  padding: 22px 0 18px 0;
+  text-align: center;
 }
-.bmd-hero h1 { margin: 0 0 6px 0; font-size: 26px; letter-spacing: -0.01em; }
+.bmd-hero h1 {
+  margin: 0 0 8px 0;
+  font-size: 28px;
+  letter-spacing: -0.01em;
+}
 .bmd-hero p {
-  margin: 0; color: var(--body-text-color-subdued);
-  font-size: 14px; line-height: 1.5; max-width: 75ch;
+  margin: 0 auto;
+  color: var(--body-text-color-subdued);
+  font-size: 14px;
+  line-height: 1.55;
+  max-width: 60ch;
 }
+
+/* ===== Chat-style input card ===== */
+.bmd-input-wrap { margin-bottom: 8px; }
+
+.bmd-input-card {
+  border: 1px solid var(--border-color-primary) !important;
+  border-radius: 18px !important;
+  background: var(--background-fill-primary) !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  padding: 14px 16px 10px 16px !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  margin-bottom: 14px;
+}
+.bmd-input-card:focus-within {
+  border-color: var(--color-accent-soft) !important;
+  box-shadow: 0 2px 12px rgba(99,102,241,0.10);
+}
+.bmd-prompt-textarea textarea {
+  border: none !important;
+  background: transparent !important;
+  resize: none !important;
+  font-size: 16px !important;
+  padding: 4px 2px !important;
+  box-shadow: none !important;
+}
+.bmd-prompt-textarea textarea:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.bmd-input-controls {
+  gap: 8px !important;
+  align-items: center !important;
+  margin-top: 8px !important;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color-accent-subdued);
+}
+.bmd-spacer { flex: 1; }
+
+/* Game pills inside the input card */
+.bmd-game-pills {
+  border: none !important;
+  background: transparent !important;
+}
+.bmd-game-pills label {
+  font-size: 12px !important;
+  padding: 4px 10px !important;
+  border-radius: 999px !important;
+  border: 1px solid var(--border-color-primary) !important;
+  margin-right: 4px !important;
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+.bmd-game-pills label:hover { background: var(--background-fill-secondary); }
+
+/* Compact character dropdown */
+.bmd-char-dropdown {
+  font-size: 12px !important;
+}
+.bmd-char-dropdown .wrap {
+  border: 1px solid var(--border-color-primary) !important;
+  border-radius: 999px !important;
+  padding: 2px 6px !important;
+  font-size: 12px !important;
+}
+
+/* Inline build button */
+.bmd-build-btn-inline button {
+  border-radius: 999px !important;
+  padding: 6px 16px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+}
+
+/* Quick-start chip row */
+.bmd-chip-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--body-text-color-subdued);
+  margin: 14px 0 6px 4px;
+  font-weight: 600;
+}
+.bmd-chip-row { gap: 6px !important; flex-wrap: wrap !important; margin-bottom: 14px; }
+.bmd-chip,
+.bmd-chip button {
+  font-size: 12px !important;
+  padding: 5px 12px !important;
+  border-radius: 999px !important;
+  font-weight: 400 !important;
+  white-space: nowrap;
+  background: var(--background-fill-secondary) !important;
+  border: 1px solid var(--border-color-primary) !important;
+}
+.bmd-chip:hover button { background: var(--background-fill-primary) !important; }
+
+/* Options accordion: subtle */
+.bmd-options-accordion {
+  border: none !important;
+  background: transparent !important;
+}
+
+/* Results wrapper */
+.bmd-results-wrap { margin-top: 24px; }
 
 .bmd-section-label {
   font-size: 12px; font-weight: 600;
@@ -643,27 +753,85 @@ CUSTOM_CSS = """
 }
 .bmd-notes ul { margin: 4px 0 0 0; padding-left: 18px; }
 
-/* Strategy panel */
+/* ===== Strategy section: prominent, top-of-results ===== */
+.bmd-strategy-empty {
+  padding: 36px 24px;
+  text-align: center;
+  background: linear-gradient(135deg, rgba(99,102,241,0.05), rgba(236,72,153,0.05));
+  border: 1px dashed var(--border-color-primary);
+  border-radius: 14px;
+  margin-bottom: 18px;
+}
+.bmd-strategy-empty-icon { font-size: 30px; margin-bottom: 10px; }
+.bmd-strategy-empty-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.bmd-strategy-empty-tip {
+  font-size: 14px;
+  color: var(--body-text-color-subdued);
+  max-width: 56ch;
+  margin: 0 auto;
+  line-height: 1.55;
+}
+
+.bmd-strategy-header {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 18px;
+  background: linear-gradient(135deg, rgba(99,102,241,0.10), rgba(236,72,153,0.08));
+  border: 1px solid rgba(99,102,241,0.25);
+  border-radius: 14px 14px 0 0;
+  margin-top: 4px;
+  border-bottom: none;
+}
+.bmd-strategy-icon { font-size: 22px; line-height: 1; }
+.bmd-strategy-title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.005em;
+}
+.bmd-strategy-sub {
+  font-size: 12px;
+  color: var(--body-text-color-subdued);
+}
+
 .bmd-strategy-body {
   background: var(--background-fill-primary);
-  border: 1px solid var(--border-color-primary);
-  border-radius: 10px;
-  padding: 16px 20px;
-  font-size: 14px;
-  line-height: 1.6;
+  border: 1px solid rgba(99,102,241,0.25);
+  border-top: none;
+  border-radius: 0 0 14px 14px;
+  padding: 18px 22px 22px 22px;
+  font-size: 14.5px;
+  line-height: 1.65;
+  margin-bottom: 22px;
 }
-.bmd-strategy-body h3 {
-  margin: 14px 0 6px 0 !important;
-  font-size: 14px !important;
-  letter-spacing: 0.04em;
+.bmd-strategy-body h3,
+.bmd-strategy-body h4 {
+  margin: 18px 0 8px 0 !important;
+  font-size: 13px !important;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--body-text-color);
+  font-weight: 700 !important;
 }
-.bmd-strategy-body h3:first-child { margin-top: 0 !important; }
-.bmd-strategy-body ul { margin: 4px 0 8px 18px !important; padding: 0 !important; }
-.bmd-strategy-body li { margin-bottom: 4px; }
-.bmd-strategy-body p { margin: 4px 0 8px 0; }
-.bmd-strategy-body strong { color: var(--body-text-color); }
+.bmd-strategy-body h3:first-child,
+.bmd-strategy-body h4:first-child { margin-top: 0 !important; }
+.bmd-strategy-body ul { margin: 4px 0 10px 20px !important; padding: 0 !important; }
+.bmd-strategy-body li { margin-bottom: 5px; }
+.bmd-strategy-body p { margin: 6px 0 10px 0; }
+.bmd-strategy-body strong { color: var(--body-text-color); font-weight: 600; }
+
+.dark .bmd-strategy-empty {
+  background: linear-gradient(135deg, rgba(99,102,241,0.10), rgba(236,72,153,0.08));
+}
+.dark .bmd-strategy-header {
+  background: linear-gradient(135deg, rgba(99,102,241,0.20), rgba(236,72,153,0.15));
+  border-color: rgba(99,102,241,0.40);
+}
+.dark .bmd-strategy-body { border-color: rgba(99,102,241,0.40); }
 
 /* Footer */
 .bmd-footer {
@@ -690,34 +858,54 @@ def make_demo() -> gr.Blocks:
             '</div>'
         )
 
-        with gr.Row(equal_height=False):
-            # ---------- LEFT: form ----------
-            with gr.Column(scale=2):
-                game = gr.Radio(
-                    choices=list(GAMES.keys()),
-                    value=GAME_LABELS[initial_game],
-                    label="Game",
-                )
-                character = gr.Dropdown(
-                    choices=initial_classes,
-                    value="ironclad",
-                    label="Character",
-                )
-
-                gr.HTML('<div class="bmd-section-label">Quick start, example prompts</div>')
-                with gr.Row(elem_classes="bmd-chip-row"):
-                    chip_btns = [
-                        gr.Button(p, size="sm", elem_classes="bmd-chip")
-                        for p in EXAMPLE_PROMPTS
-                    ]
-
+        # ---------- INPUT CARD (chat-style) ----------
+        with gr.Column(elem_classes="bmd-input-wrap"):
+            with gr.Group(elem_classes="bmd-input-card"):
                 prompt = gr.Textbox(
-                    label="Prompt",
-                    placeholder="A deck that wins by stacking poison and exhausting itself",
+                    placeholder="Describe a playstyle. e.g. 'A deck that stacks poison and exhausts itself.'",
                     lines=3,
-                    max_lines=6,
+                    max_lines=8,
+                    show_label=False,
+                    container=False,
+                    elem_classes="bmd-prompt-textarea",
                 )
+                with gr.Row(elem_classes="bmd-input-controls"):
+                    game = gr.Radio(
+                        choices=list(GAMES.keys()),
+                        value=GAME_LABELS[initial_game],
+                        show_label=False,
+                        container=False,
+                        elem_classes="bmd-game-pills",
+                        scale=0,
+                    )
+                    character = gr.Dropdown(
+                        choices=initial_classes,
+                        value="ironclad",
+                        show_label=False,
+                        container=False,
+                        elem_classes="bmd-char-dropdown",
+                        scale=0,
+                        min_width=140,
+                    )
+                    gr.HTML('<div class="bmd-spacer"></div>')
+                    build_btn = gr.Button(
+                        "Build deck  ↑",
+                        variant="primary",
+                        size="sm",
+                        scale=0,
+                        elem_classes="bmd-build-btn-inline",
+                    )
 
+            # Quick-start chip row, like ChatGPT's "try one of these"
+            gr.HTML('<div class="bmd-chip-label">Try a starting prompt</div>')
+            with gr.Row(elem_classes="bmd-chip-row"):
+                chip_btns = [
+                    gr.Button(p, size="sm", elem_classes="bmd-chip")
+                    for p in EXAMPLE_PROMPTS
+                ]
+
+            # Options accordion (collapsed by default; secondary)
+            with gr.Accordion("Options", open=False, elem_classes="bmd-options-accordion"):
                 deck_size = gr.Slider(
                     minimum=10, maximum=30, value=20, step=1, label="Deck size",
                 )
@@ -727,46 +915,53 @@ def make_demo() -> gr.Blocks:
                     label="Starters",
                     info="Locks the character's starting cards in place; remaining slots come from the prompt.",
                 )
-
-                with gr.Accordion("Advanced", open=False):
-                    allow_duplicates = gr.Checkbox(
-                        value=True, label="Allow duplicate copies (max 4 per name)",
-                    )
-                    enforce_curve = gr.Checkbox(
-                        value=True, label="Enforce mana curve (30% low / 50% mid / 20% high)",
-                    )
-                    enforce_type_balance = gr.Checkbox(
-                        value=True, label="Enforce type balance (50% Attack / 35% Skill / 15% Power)",
-                    )
-
-                build_btn = gr.Button(
-                    "Build deck →", variant="primary", size="lg",
-                    elem_classes="bmd-build-btn",
+                allow_duplicates = gr.Checkbox(
+                    value=True, label="Allow duplicate copies (max 4 per name)",
+                )
+                enforce_curve = gr.Checkbox(
+                    value=True, label="Enforce mana curve (30% low / 50% mid / 20% high)",
+                )
+                enforce_type_balance = gr.Checkbox(
+                    value=True, label="Enforce type balance (50% Attack / 35% Skill / 15% Power)",
                 )
 
-            # ---------- RIGHT: results ----------
-            with gr.Column(scale=3):
-                gr.HTML('<div class="bmd-section-label">Result</div>')
-                honesty_banner = gr.HTML("")
-                quality_banner = gr.HTML(_empty_state_html())
-                deck_grid = gr.HTML("")
-                notes_panel = gr.HTML("")
-                with gr.Accordion("See full table", open=False):
-                    full_table = gr.Dataframe(
-                        headers=["similarity", "locked", "name", "type", "rarity", "color", "cost", "description"],
-                        interactive=False, wrap=True, row_count=(0, "dynamic"),
-                    )
+        # ---------- RESULTS (full-width below input) ----------
+        with gr.Column(elem_classes="bmd-results-wrap"):
+            # Strategy section pulled to the TOP of results, prominent styling.
+            strategy_section = gr.HTML(
+                '<div class="bmd-strategy-empty">'
+                '<div class="bmd-strategy-empty-icon">🗺</div>'
+                '<div class="bmd-strategy-empty-title">Boss strategy plan</div>'
+                '<div class="bmd-strategy-empty-tip">'
+                "After you build a deck, this section becomes a per-act strategic readout: "
+                "what your deck wants to do each turn, key card synergies, and how it handles "
+                "every boss in every act for the chosen class. "
+                "Powered by Qwen2.5-72B via HF Inference Providers."
+                '</div></div>'
+            )
+            strategy_md = gr.Markdown(
+                "",
+                elem_classes="bmd-strategy-body",
+                visible=False,
+            )
 
-                gr.HTML('<div class="bmd-section-label" id="strategy-section">Strategy & boss matchups</div>')
-                strategy_md = gr.Markdown(
-                    "_Strategy reasoning will appear here after the deck builds. "
-                    "Uses Qwen2.5-72B via HF Inference Providers to map the deck "
-                    "onto each act's bosses for the chosen class._",
-                    elem_classes="bmd-strategy-body",
+            # Honesty + quality banner
+            honesty_banner = gr.HTML("")
+            quality_banner = gr.HTML(_empty_state_html())
+
+            # Deck grid + notes
+            deck_grid = gr.HTML("")
+            notes_panel = gr.HTML("")
+
+            # Full table accordion (collapsed)
+            with gr.Accordion("See full table", open=False):
+                full_table = gr.Dataframe(
+                    headers=["similarity", "locked", "name", "type", "rarity", "color", "cost", "description"],
+                    interactive=False, wrap=True, row_count=(0, "dynamic"),
                 )
 
-                # Hidden state passed from `build` to `render_strategy`.
-                deck_state = gr.State({})
+            # Hidden state passed from `build` to `render_strategy`.
+            deck_state = gr.State({})
 
         # Event wiring
         game.change(
@@ -776,6 +971,24 @@ def make_demo() -> gr.Blocks:
         for btn, text in zip(chip_btns, EXAMPLE_PROMPTS):
             btn.click(fn=_on_chip_click, inputs=gr.State(text), outputs=prompt)
 
+        def _show_strategy_loading():
+            # Replace empty-state with the section header + loading copy,
+            # and reveal the markdown component.
+            return (
+                '<div class="bmd-strategy-header">'
+                '<div class="bmd-strategy-icon">🗺</div>'
+                '<div>'
+                '<div class="bmd-strategy-title">Boss strategy plan</div>'
+                '<div class="bmd-strategy-sub">Per-act readout for this deck and class</div>'
+                '</div>'
+                '</div>',
+                gr.update(value="_Generating strategic readout… (5-15s)_", visible=True),
+            )
+
+        def _show_strategy_result(state):
+            text = render_strategy(state)
+            return gr.update(value=text, visible=True)
+
         build_btn.click(
             fn=build,
             inputs=[game, character, prompt, deck_size, include_starters,
@@ -783,12 +996,11 @@ def make_demo() -> gr.Blocks:
             outputs=[honesty_banner, quality_banner, deck_grid, notes_panel,
                      full_table, deck_state],
         ).then(
-            # Show a placeholder while the LLM runs, then replace with the result.
-            fn=lambda: "_Generating strategy reasoning… (this takes 5-15s)_",
+            fn=_show_strategy_loading,
             inputs=None,
-            outputs=strategy_md,
+            outputs=[strategy_section, strategy_md],
         ).then(
-            fn=render_strategy,
+            fn=_show_strategy_result,
             inputs=deck_state,
             outputs=strategy_md,
         )
