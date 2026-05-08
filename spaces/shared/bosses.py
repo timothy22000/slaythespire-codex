@@ -1,7 +1,7 @@
 """Boss data for STS1 and STS2 + LLM-generated strategy reasoning.
 
 Bosses are hardcoded per game per act. STS1 is canonical and stable;
-STS2 is Early Access and shifts across patches — STS2 entries are
+STS2 is Early Access and shifts across patches, STS2 entries are
 labeled best-effort and may drift. Each entry captures:
   - name
   - act
@@ -69,7 +69,7 @@ STS1_BOSSES: list[Boss] = [
          "Need both block-stacking and a clean kill turn that breaks Invincible. Artifact stack against the debuffs. Long-game decks usually lose."),
 ]
 
-# STS2 boss roster — best effort as of the indexed snapshot. STS2 is in Early
+# STS2 boss roster, best effort as of the indexed snapshot. STS2 is in Early
 # Access; bosses are added/rebalanced with patches. Treat threats and counters
 # as approximate. Verify against in-game info if exact matchup is critical.
 STS2_BOSSES: list[Boss] = [
@@ -120,7 +120,7 @@ def bosses_for_prompt(game: str) -> str:
     for act in sorted(by_act):
         lines.append(f"\nAct {act}:")
         for b in by_act[act]:
-            lines.append(f"- **{b.name}** — {b.threat} *Counter:* {b.counters}")
+            lines.append(f"- **{b.name}**, {b.threat} *Counter:* {b.counters}")
     return "\n".join(lines).strip()
 
 
@@ -148,7 +148,7 @@ Write a concise strategic analysis in three sections, using markdown headings:
 3-5 short bullets naming the strongest interactions between cards in this deck.
 
 ### Boss matchups
-For each act, write 1-2 sentences specifically about how this deck handles that act's bosses given the cards present. Be honest about weaknesses — call out specific bosses the deck struggles against and explain why.
+For each act, write 1-2 sentences specifically about how this deck handles that act's bosses given the cards present. Be honest about weaknesses, call out specific bosses the deck struggles against and explain why.
 
 Be direct and grounded in the actual cards. Don't invent cards that aren't in the deck. If the deck doesn't actually fit the user's stated playstyle, say so in the Strategy summary.
 """
@@ -193,7 +193,7 @@ def generate_strategy(
     game: str,
     character: str,
     user_prompt: str,
-    result: Any,  # DeckResult — typed loosely to avoid circular import
+    result: Any,  # DeckResult, typed loosely to avoid circular import
 ) -> str | None:
     """Call HF Inference Providers to produce strategic reasoning for the deck.
 

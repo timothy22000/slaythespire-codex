@@ -126,7 +126,7 @@ def render_scatter(
                     )
                 )
 
-            # Picked card on top — gold star, always visible even if filtered out
+            # Picked card on top, gold star, always visible even if filtered out
             fig.add_trace(
                 go.Scatter(
                     x=[picked["umap_x"]],

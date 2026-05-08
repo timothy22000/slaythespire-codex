@@ -1,4 +1,4 @@
-"""Slay the Spire — Build Me a Deck.
+"""Slay the Spire: Build Me a Deck.
 
 Text-prompt-driven deck synthesis. User describes a playstyle ("a deck that
 wins by stacking poison and exhausting itself"), picks a character, gets back
@@ -88,7 +88,7 @@ def _honesty_band(avg_sim: float) -> tuple[str, str] | None:
     return ("bmd-honesty-red",
             f"Average fit: {avg_sim:.2f}. The embeddings didn't find strong matches "
             f"for this prompt. Two common reasons: (1) the prompt names a mechanic "
-            f"that doesn't exist for this character (e.g. 'lightning' on Ironclad — "
+            f"that doesn't exist for this character (e.g. 'lightning' on Ironclad, "
             f"Lightning is Defect-only), or (2) the prompt is too abstract. Try a "
             f"one-line description of mechanics, e.g. 'Apply weak and vulnerable, "
             f"then deal damage.'")
@@ -200,7 +200,7 @@ def _quality_banner_html(result: DeckResult) -> str:
 
 
 def _honesty_banner_html(result: DeckResult) -> str:
-    # Don't fire when starters exactly fill the deck — there's no prompt-driven
+    # Don't fire when starters exactly fill the deck, there's no prompt-driven
     # signal to honest about. avg_sim_picks would be 0.0 and trip the red band
     # spuriously.
     if not any(not p.locked for p in result.picks):
@@ -214,7 +214,7 @@ def _honesty_banner_html(result: DeckResult) -> str:
 
 def _card_cell_html(p: Any, max_sim: float) -> str:
     badge = '<span class="bmd-card-locked">LOCKED</span>' if p.locked else ""
-    cost = "X" if p.cost == "-1" else (p.cost or "—")
+    cost = "X" if p.cost == "-1" else (p.cost or "-")
     desc_raw = (p.description or "").strip()
     desc_html = _html.escape(desc_raw) if desc_raw else "<i>(no description)</i>"
     sim_pct = max(0.0, min(1.0, p.similarity / max_sim if max_sim > 0 else 0.0)) * 100
@@ -678,10 +678,10 @@ def make_demo() -> gr.Blocks:
     initial_game = "sts1"
     initial_classes = DRAFTED_CLASSES[initial_game]
 
-    with gr.Blocks(title="Slay the Spire — Build Me a Deck", css=CUSTOM_CSS) as demo:
+    with gr.Blocks(title="Slay the Spire: Build Me a Deck", css=CUSTOM_CSS) as demo:
         gr.HTML(
             '<div class="bmd-hero">'
-            '<h1>Slay the Spire — Build Me a Deck</h1>'
+            '<h1>Slay the Spire: Build Me a Deck</h1>'
             '<p>Describe a playstyle. Get a deck that matches. The algorithm '
             'encodes your prompt with the same Qwen3 model used for the '
             'indexed cards, then picks cards by cosine similarity to the prompt '
@@ -704,7 +704,7 @@ def make_demo() -> gr.Blocks:
                     label="Character",
                 )
 
-                gr.HTML('<div class="bmd-section-label">Quick start — example prompts</div>')
+                gr.HTML('<div class="bmd-section-label">Quick start, example prompts</div>')
                 with gr.Row(elem_classes="bmd-chip-row"):
                     chip_btns = [
                         gr.Button(p, size="sm", elem_classes="bmd-chip")
@@ -797,7 +797,7 @@ def make_demo() -> gr.Blocks:
             '<div class="bmd-footer">'
             'Built with <a href="https://github.com/timothy22000/slaythespire-codex">slaythespire-codex</a>. '
             'Greedy similarity-based selection with constraint-feasibility checks; not an optimization solver. '
-            "Decks are aspirational — actual STS runs build decks card-by-card from card-reward draws. "
+            "Decks are aspirational, actual STS runs build decks card-by-card from card-reward draws. "
             'Data: '
             '<a href="https://huggingface.co/datasets/t22000t/slay-the-spire-1-cards">STS1 cards</a> · '
             '<a href="https://huggingface.co/datasets/t22000t/slay-the-spire-1-card-embeddings">STS1 embeddings</a> · '

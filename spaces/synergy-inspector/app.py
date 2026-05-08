@@ -148,7 +148,7 @@ def _similarity_banner_html(top_match: pd.Series, sim: float) -> str:
     color = _html.escape(str(top_match.get("color", "")))
     rarity = _html.escape(str(top_match.get("rarity", "")))
     desc = _html.escape(str(top_match.get("description", "")) or "")
-    cost_label = "X" if cost == "-1" else ("Unplayable" if cost == "-2" else (cost or "—"))
+    cost_label = "X" if cost == "-1" else ("Unplayable" if cost == "-2" else (cost or "-"))
 
     return f"""
 <div class="synergy-banner {cls}">
@@ -160,11 +160,11 @@ def _similarity_banner_html(top_match: pd.Series, sim: float) -> str:
       <div class="synergy-featured-sim">cosine {sim:.3f}</div>
     </div>
     <div class="synergy-featured-meta">
-      <span>{type_ or '—'}</span>
+      <span>{type_ or '-'}</span>
       <span class="synergy-divider">·</span>
-      <span>{rarity or '—'}</span>
+      <span>{rarity or '-'}</span>
       <span class="synergy-divider">·</span>
-      <span>{color or '—'}</span>
+      <span>{color or '-'}</span>
       <span class="synergy-divider">·</span>
       <span>cost {cost_label}</span>
     </div>
@@ -394,8 +394,8 @@ VISION_EXTRACTION_PROMPT = """You are looking at a screenshot of a Slay the Spir
   "description": "<exact card description text>",
   "description_upgraded": null,
   "keywords": ["..."] or null,
-  "damage": <integer or null — primary damage value if 'Deal N damage' appears>,
-  "block": <integer or null — primary block value if 'Gain N block' appears>
+  "damage": <integer or null, primary damage value if 'Deal N damage' appears>,
+  "block": <integer or null, primary block value if 'Gain N block' appears>
 }
 
 Color guide: card border color signals the character class.
@@ -840,8 +840,8 @@ def make_demo() -> gr.Blocks:
                         "reads the card's name, cost, type, description, and "
                         "stats, then fills the form. Takes ~3-5 seconds. "
                         "Requires `HF_TOKEN` to be set in the Space's secrets "
-                        "— without it, this path returns a clear error.\n\n"
-                        "**JSON** (`.json`) — fields all optional:\n"
+                        "- without it, this path returns a clear error.\n\n"
+                        "**JSON** (`.json`), fields all optional:\n"
                         "```json\n"
                         "{\n"
                         '  "name": "Phantom Strike",\n'
@@ -856,7 +856,7 @@ def make_demo() -> gr.Blocks:
                         '  "block": null\n'
                         "}\n"
                         "```\n\n"
-                        "**CSV** (`.csv`) — header row required, same field "
+                        "**CSV** (`.csv`), header row required, same field "
                         "names as the JSON keys above. Only the first row is "
                         "used; multi-row files surface a one-line notice.\n\n"
                         "Cost values of `\"-1\"`/`-1` map to *X*; `\"-2\"`/`-2` "

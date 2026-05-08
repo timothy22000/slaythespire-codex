@@ -1,6 +1,6 @@
 """Card-document construction for embedding.
 
-Vendored from src/sts_cards/normalize.py — keep in sync. Only the helpers
+Vendored from src/sts_cards/normalize.py, keep in sync. Only the helpers
 needed by Space 2 (Synergy Inspector) and Space 3 (Build Me a Deck) are
 included; the full normalize_card() function lives in the parent package.
 """

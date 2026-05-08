@@ -106,7 +106,7 @@ def _curve_bucket(cost_str) -> str:
         return "mid"
     if s in ("3", "4", "5", "6", "7", "8", "9"):
         return "high"
-    return "mid"  # fallback for "" — shouldn't appear after pool filter
+    return "mid"  # fallback for "", shouldn't appear after pool filter
 
 
 def _cost_for_avg(cost_str) -> float:
@@ -125,7 +125,7 @@ def _cost_for_avg(cost_str) -> float:
 def _starter_row_idx(pool_df: pd.DataFrame, name: str, character: str) -> int | None:
     """Find the pool row matching a starter card name with the right color.
 
-    Strike/Defend exist as one row per character class — pick the one whose
+    Strike/Defend exist as one row per character class, pick the one whose
     color matches. Other starters are character-unique so the color match
     is redundant but still safe.
     """
@@ -211,7 +211,7 @@ def build_deck(
         for (name, count) in wanted:
             idx = _starter_row_idx(pool_df, name, character)
             if idx is None:
-                notes.append(f"Starter card {name!r} not in pool — slot replaced by prompt match.")
+                notes.append(f"Starter card {name!r} not in pool, slot replaced by prompt match.")
                 continue
             locked_indices.extend([idx] * count)
 
@@ -288,7 +288,7 @@ def build_deck(
         curve_count[cbucket] += 1
         remaining -= 1
 
-    # 5) Safety net — fill any leftover slots from top-similarity ignoring constraints.
+    # 5) Safety net, fill any leftover slots from top-similarity ignoring constraints.
     if remaining > 0:
         for ci in candidates:
             if remaining <= 0:

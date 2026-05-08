@@ -12,7 +12,7 @@ license: mit
 short_description: Describe a Slay the Spire playstyle, get a deck.
 ---
 
-# Slay the Spire — Build Me a Deck
+# Slay the Spire: Build Me a Deck
 
 Describe a Slay the Spire playstyle in plain English and get back a 20-card deck whose cards are scored against the prompt. The algorithm:
 
@@ -22,7 +22,7 @@ Describe a Slay the Spire playstyle in plain English and get back a 20-card deck
 4. Greedily picks remaining cards by descending cosine similarity, with feasibility checks against attack/skill/power and mana-curve targets so the algorithm doesn't dead-end.
 5. Returns a card grid with similarity scores, a fit-summary banner with type ratio + curve histogram + top theme keywords, and an honesty layer that flags weak prompts with diagnostic copy.
 
-Greedy similarity-based selection, not an optimization solver. Decks are aspirational — actual STS runs build decks card-by-card from card-reward draws.
+Greedy similarity-based selection, not an optimization solver. Decks are aspirational, actual STS runs build decks card-by-card from card-reward draws.
 
 ## Data sources
 
