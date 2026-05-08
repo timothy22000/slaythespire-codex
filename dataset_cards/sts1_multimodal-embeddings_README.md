@@ -29,16 +29,18 @@ Joint text+image embeddings for every card in **Slay the Spire** (1.0 release), 
 
 This is the **multimodal-embeddings** dataset. For text-only embeddings or the underlying card metadata + portraits, see:
 
-- **[`t22000t/slay-the-spire-1-cards`](https://huggingface.co/datasets/t22000t/slay-the-spire-1-cards)** — metadata + features + inline portrait art
-- **[`t22000t/slay-the-spire-1-card-embeddings`](https://huggingface.co/datasets/t22000t/slay-the-spire-1-card-embeddings)** — text-only embeddings via Qwen3-Embedding-0.6B
+- **[`t22000t/slay-the-spire-1-cards`](https://huggingface.co/datasets/t22000t/slay-the-spire-1-cards)** - metadata + features + inline portrait art
+- **[`t22000t/slay-the-spire-1-card-embeddings`](https://huggingface.co/datasets/t22000t/slay-the-spire-1-card-embeddings)** - text-only embeddings via Qwen3-Embedding-0.6B
 
 All three are joinable on `id`. For the STS2 multimodal counterpart, see [`t22000t/slay-the-spire-2-card-multimodal-embeddings`](https://huggingface.co/datasets/t22000t/slay-the-spire-2-card-multimodal-embeddings).
+
+The full bundle (6 datasets across both games + 3 Gradio demos) is in the [**slaythespire-codex collection**](https://huggingface.co/collections/t22000t/slaythespire-codex).
 
 ## Dataset Description
 
 - **Repository:** [`timothy22000/slaythespire-codex`](https://github.com/timothy22000/slaythespire-codex)
 - **Embedding model:** [`Qwen/Qwen3-VL-Embedding-2B`](https://huggingface.co/Qwen/Qwen3-VL-Embedding-2B) (Apache 2.0)
-- **Card count:** 360 (1 text-only — `IMPULSE` has no portrait in the JAR)
+- **Card count:** 360 (1 text-only - `IMPULSE` has no portrait in the JAR)
 - **Vector dim:** 1024 (Matryoshka-truncated from 2048; matches the text-embedding repos for consistency)
 - **License:** CC BY 4.0; game IP belongs to Mega Crit
 
@@ -46,7 +48,7 @@ All three are joinable on `id`. For the STS2 multimodal counterpart, see [`t2200
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `id` | string | Stable card identifier — **the join key** |
+| `id` | string | Stable card identifier - **the join key** |
 | `game` | string | Always `"sts1"` |
 | `name` | string | Display name |
 | `card_text` | string | Prettified-JSON document fed to the encoder |
@@ -101,9 +103,9 @@ for j in top:
 ## Considerations for Using the Data
 
 - **Lookalike-bias risk.** Multimodal embeddings can over-index on visual similarity. The instruction subordinates art to mechanics; if you observe undesirable lookalike clustering, the follow-up is a weighted concat of the separate text and image embeddings rather than a joint encode.
-- **Cards without art.** 1 card (`IMPULSE`) has no portrait in the source JAR — its vector is text-only. `has_image=False` lets you filter or weight differently.
+- **Cards without art.** 1 card (`IMPULSE`) has no portrait in the source JAR - its vector is text-only. `has_image=False` lets you filter or weight differently.
 - **English only** in this snapshot.
-- **Game IP.** Slay the Spire is © [Mega Crit](https://www.megacrit.com/). The dataset ships factual reference data + numerical embedding vectors only — no card art bytes are redistributed in this repo (the upstream `cards` repo is where art lives).
+- **Game IP.** Slay the Spire is © [Mega Crit](https://www.megacrit.com/). The dataset ships factual reference data + numerical embedding vectors only - no card art bytes are redistributed in this repo (the upstream `cards` repo is where art lives).
 
 ## Provenance
 

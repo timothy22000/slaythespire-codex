@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import json
 import logging
 import os
 import re
@@ -31,6 +32,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pandas as pd
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 log = logging.getLogger(__name__)
 
@@ -553,15 +556,43 @@ def _png_dimensions(png_bytes: bytes) -> tuple[int, int] | None:
         return None
 
 
+# Arrow type for an HF-compatible image column. `datasets.Image()` produces
+# this exact shape; the HF dataset viewer recognizes it and renders thumbnails.
+# Raw `binary` columns do NOT render even with the README YAML feature
+# declaration - the viewer requires this struct shape.
+HF_IMAGE_STRUCT_TYPE = pa.struct([
+    pa.field("bytes", pa.binary()),
+    pa.field("path", pa.string()),
+])
+
+
+def _hf_features_metadata(columns: list[str], image_col: str) -> dict[bytes, bytes]:
+    """Build the parquet schema metadata that the HF datasets library writes
+    when calling `Dataset.to_parquet()`. Including this lets the HF dataset
+    viewer recognize the image column even before the README is fetched.
+    """
+    features: dict[str, dict] = {}
+    for col in columns:
+        if col == image_col:
+            features[col] = {"_type": "Image"}
+        # Other columns: let HF infer from the parquet's primitive types.
+    info = {"info": {"features": features}}
+    return {b"huggingface": json.dumps(info).encode("utf-8")}
+
+
 def attach_art_to_cards(
     cards_parquet: Path,
     art_bytes: dict[str, bytes],
     resolution: str = "high",
 ) -> dict[str, int | float]:
-    """Add `image` (raw PNG bytes) and `image_resolution` columns to
+    """Add `image` (HF-compatible struct) and `image_resolution` columns to
     `cards.parquet`. Each row's id is joined via `candidate_keys(id, name)`
     so SCREAMING_SNAKE_CASE parquet ids resolve to lowercase JAR stems
     even when word boundaries differ. Cards without art get `image=None`.
+
+    The image column is written as `struct<bytes: binary, path: string>`,
+    the format `datasets.Image()` produces and what the HF dataset viewer
+    needs to render thumbnails. Storing as raw `binary` does not render.
 
     Idempotent: existing `image` / `image_resolution` columns are
     overwritten in place.
@@ -580,17 +611,47 @@ def attach_art_to_cards(
                 return art_bytes[c]
         return None
 
-    df["image"] = df.apply(_lookup, axis=1)
-    df["image_resolution"] = df["image"].map(lambda b: resolution if b is not None else None)
+    image_bytes_series = df.apply(_lookup, axis=1)
+    df["image_resolution"] = image_bytes_series.map(
+        lambda b: resolution if b is not None else None
+    )
+
+    # The non-image columns go via pandas; the image column gets an explicit
+    # Arrow struct type so the parquet schema is exactly what HF expects.
+    df_no_image = df.drop(columns=["image"], errors="ignore")
+    table = pa.Table.from_pandas(df_no_image, preserve_index=False)
+
+    image_records = [
+        {"bytes": b, "path": None} if b is not None else None
+        for b in image_bytes_series
+    ]
+    image_array = pa.array(image_records, type=HF_IMAGE_STRUCT_TYPE)
 
     # Move image / image_resolution to the front (right after `id`) so the
     # HF dataset viewer surfaces the portrait thumbnail early in the row.
-    front = [c for c in ("id", "image", "image_resolution") if c in df.columns]
-    rest = [c for c in df.columns if c not in front]
-    df = df[front + rest]
+    if "id" in table.column_names:
+        id_pos = table.column_names.index("id")
+        insert_at = id_pos + 1
+    else:
+        insert_at = 0
+    table = table.add_column(insert_at, "image", image_array)
 
-    n_matched = int(df["image"].notna().sum())
-    df.to_parquet(cards_parquet, index=False)
+    final_columns = list(table.column_names)
+    if "image_resolution" in final_columns and final_columns.index("image_resolution") != insert_at + 1:
+        ir_idx = final_columns.index("image_resolution")
+        ir_col = table.column(ir_idx)
+        table = table.remove_column(ir_idx)
+        table = table.add_column(insert_at + 1, "image_resolution", ir_col)
+
+    # Embed HF feature metadata so the dataset viewer detects the image
+    # column without depending solely on the README YAML.
+    existing_meta = dict(table.schema.metadata or {})
+    existing_meta.update(_hf_features_metadata(list(table.column_names), "image"))
+    table = table.replace_schema_metadata(existing_meta)
+
+    pq.write_table(table, cards_parquet)
+
+    n_matched = int(image_bytes_series.notna().sum())
 
     log.info(
         "Attached art to %s: %d/%d cards matched (%.1f%%)",

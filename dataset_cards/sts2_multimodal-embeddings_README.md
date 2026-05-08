@@ -31,10 +31,12 @@ Joint text+image embeddings for every card in **Slay the Spire 2** (Early Access
 
 This is the **multimodal-embeddings** dataset. For text-only embeddings or the underlying card metadata + portraits, see:
 
-- **[`t22000t/slay-the-spire-2-cards`](https://huggingface.co/datasets/t22000t/slay-the-spire-2-cards)** — metadata + features + inline portrait art
-- **[`t22000t/slay-the-spire-2-card-embeddings`](https://huggingface.co/datasets/t22000t/slay-the-spire-2-card-embeddings)** — text-only embeddings via Qwen3-Embedding-0.6B
+- **[`t22000t/slay-the-spire-2-cards`](https://huggingface.co/datasets/t22000t/slay-the-spire-2-cards)** - metadata + features + inline portrait art
+- **[`t22000t/slay-the-spire-2-card-embeddings`](https://huggingface.co/datasets/t22000t/slay-the-spire-2-card-embeddings)** - text-only embeddings via Qwen3-Embedding-0.6B
 
 All three are joinable on `id`. For the STS1 multimodal counterpart, see [`t22000t/slay-the-spire-1-card-multimodal-embeddings`](https://huggingface.co/datasets/t22000t/slay-the-spire-1-card-multimodal-embeddings).
+
+The full bundle (6 datasets across both games + 3 Gradio demos) is in the [**slaythespire-codex collection**](https://huggingface.co/collections/t22000t/slaythespire-codex).
 
 > ⚠️ **Early Access, content is unstable.** Slay the Spire 2 entered Early Access on March 5, 2026. Cards are added, removed, and rebalanced regularly. Always check `provenance.json` for the snapshot version.
 
@@ -50,7 +52,7 @@ All three are joinable on `id`. For the STS1 multimodal counterpart, see [`t2200
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `id` | string | Stable card identifier — **the join key** |
+| `id` | string | Stable card identifier - **the join key** |
 | `game` | string | Always `"sts2"` |
 | `name` | string | Display name |
 | `card_text` | string | Prettified-JSON document fed to the encoder |

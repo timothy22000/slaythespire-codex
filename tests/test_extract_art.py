@@ -134,6 +134,19 @@ def test_diagnose_jar_reports_match_rate(fake_jar: Path, fake_cards_parquet: Pat
 # --- attach_art_to_cards -----------------------------------------------
 
 
+def _image_bytes(cell):
+    """Pull the bytes out of an HF-style image struct cell.
+
+    After attach_art_to_cards, the column shape is `struct<bytes, path>`,
+    so each cell is either None or a dict with a `bytes` key.
+    """
+    if cell is None:
+        return None
+    if isinstance(cell, dict):
+        return cell.get("bytes")
+    return cell  # legacy path
+
+
 def test_attach_art_adds_columns_in_place(fake_cards_parquet: Path):
     """The attach step joins parquet ids (SCREAMING_SNAKE_CASE) to JAR
     stems (lowercase) via `candidate_keys`: STRIKE_R/DEFEND_R strip the
@@ -149,10 +162,13 @@ def test_attach_art_adds_columns_in_place(fake_cards_parquet: Path):
     assert "image_resolution" in df.columns
     assert {"id", "name", "type"}.issubset(df.columns)
     slimed = df.loc[df["id"] == "SLIMED"].iloc[0]
-    assert slimed["image"] is None
+    assert _image_bytes(slimed["image"]) is None
     assert slimed["image_resolution"] is None
     strike = df.loc[df["id"] == "STRIKE_R"].iloc[0]
     assert strike["image_resolution"] == "high"
+    # Image column is the HF-compatible struct, not raw bytes.
+    assert isinstance(strike["image"], dict)
+    assert "bytes" in strike["image"] and "path" in strike["image"]
 
 
 def test_attach_art_is_idempotent(fake_cards_parquet: Path):
@@ -170,10 +186,31 @@ def test_attach_art_bytes_round_trip(fake_cards_parquet: Path):
     raw = _png_bytes((8, 8), (0, 255, 0, 255))
     attach_art_to_cards(fake_cards_parquet, {"strike": raw}, resolution="high")
     df = pd.read_parquet(fake_cards_parquet)
-    out_bytes = df.loc[df["id"] == "STRIKE_R", "image"].iloc[0]
+    out_bytes = _image_bytes(df.loc[df["id"] == "STRIKE_R", "image"].iloc[0])
     assert out_bytes == raw
     with Image.open(io.BytesIO(out_bytes)) as im:
         assert im.size == (8, 8)
+
+
+def test_attach_art_writes_hf_image_struct_schema(fake_cards_parquet: Path):
+    """Parquet schema for `image` must be struct<bytes, path> and the
+    Arrow-level `huggingface` metadata must mark it as an Image feature.
+    Both are needed for the HF dataset viewer to render thumbnails."""
+    import json
+    import pyarrow.parquet as pq
+
+    art = {"strike": _png_bytes()}
+    attach_art_to_cards(fake_cards_parquet, art, resolution="high")
+
+    parquet = pq.ParquetFile(fake_cards_parquet)
+    schema = parquet.schema_arrow
+    image_field = schema.field("image")
+    assert str(image_field.type) == "struct<bytes: binary, path: string>"
+
+    meta = schema.metadata or {}
+    assert b"huggingface" in meta, "missing HF feature metadata in parquet schema"
+    info = json.loads(meta[b"huggingface"].decode("utf-8"))
+    assert info["info"]["features"]["image"] == {"_type": "Image"}
 
 
 # --- extract_pck_to_memory (subprocess mocked) -------------------------

@@ -28,8 +28,12 @@ features:
 
 A normalized dataset of every card in **Slay the Spire** (the original 2019 release), with derived feature columns for damage, block, status effects, and mechanics. **Collected for ML/DL training:** load with `datasets.load_dataset(...)` and feed straight into a card-text classifier, deckbuilder simulator, or design-analysis model.
 
-This is the **cards** dataset. For text embeddings of these cards, see the companion dataset:
-**[`t22000t/slay-the-spire-1-card-embeddings`](https://huggingface.co/datasets/t22000t/slay-the-spire-1-card-embeddings)**, joinable to this dataset by `id`.
+This is the **cards** dataset. Companion datasets, all joinable on `id`:
+
+- **[`t22000t/slay-the-spire-1-card-embeddings`](https://huggingface.co/datasets/t22000t/slay-the-spire-1-card-embeddings)** - 1024-D text embeddings via `Qwen/Qwen3-Embedding-0.6B`
+- **[`t22000t/slay-the-spire-1-card-multimodal-embeddings`](https://huggingface.co/datasets/t22000t/slay-the-spire-1-card-multimodal-embeddings)** - joint text+image embeddings via `Qwen/Qwen3-VL-Embedding-2B`
+
+The full bundle (4 datasets across both games + 3 Gradio demos) is in the [**slaythespire-codex collection**](https://huggingface.co/collections/t22000t/slaythespire-codex).
 
 For Slay the Spire 2, see **[`t22000t/slay-the-spire-2-cards`](https://huggingface.co/datasets/t22000t/slay-the-spire-2-cards)**.
 
@@ -81,7 +85,7 @@ The schema also includes STS2-specific columns (`orbs_channeled`, `orbs_referenc
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `image` | image (PNG bytes) | Card portrait art. Decoded to a PIL Image automatically by `datasets.load_dataset()`. Cards without art get `null`. |
+| `image` | HF `Image` feature (`struct<bytes, path>`) | Card portrait art. Decoded to a PIL Image automatically by `datasets.load_dataset()`; via `pd.read_parquet` you'll get a dict (`{"bytes": ..., "path": null}`). Cards without art get `null`. |
 | `image_resolution` | string | `"high"` (~1024×1024) or `"low"` (~256×256). |
 
 ## Card art
@@ -140,7 +144,7 @@ The derived feature columns are extracted via best-effort regex. Cards with non-
 ### Other Known Limitations
 
 - **English only** in this snapshot. The upstream pipeline supports 13 languages but multilingual data is not currently shipped.
-- **Card text only**, no card art, audio, or other media.
+- **Text + portrait art only**, no audio, animations, or other media.
 - STS1 has been stable since its 1.0 release, so drift is minimal, but check `provenance.json` for the fetch date if you need certainty.
 
 ## Provenance
@@ -163,4 +167,4 @@ A `provenance.json` ships alongside the data file documenting the exact fetch so
 
 - **Dataset (this repository):** [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)
 - **Pipeline code:** MIT, see [github.com/timothy22000/slaythespire-codex](https://github.com/timothy22000/slaythespire-codex)
-- **Game IP:** Slay the Spire is © [Mega Crit](https://www.megacrit.com/). This dataset contains factual reference data and includes no card art or proprietary creative assets. If Mega Crit objects to redistribution, the dataset will be taken down.
+- **Game IP:** Slay the Spire is © [Mega Crit](https://www.megacrit.com/). This dataset ships factual reference data plus extracted card portraits for tooling and modding use; Mega Crit has publicly blessed redistribution of fan-extracted card art. If Mega Crit objects, the `image` column will be removed.

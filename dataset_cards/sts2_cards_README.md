@@ -30,8 +30,12 @@ features:
 
 A normalized dataset of every card in **Slay the Spire 2** (Early Access), with derived feature columns including STS2-specific Orb, Forge, and Soul mechanics. **Collected for ML/DL training:** load with `datasets.load_dataset(...)` and feed straight into a card-text classifier, deckbuilder simulator, or design-analysis model.
 
-This is the **cards** dataset. For text embeddings of these cards, see the companion dataset:
-**[`t22000t/slay-the-spire-2-card-embeddings`](https://huggingface.co/datasets/t22000t/slay-the-spire-2-card-embeddings)**, joinable to this dataset by `id`.
+This is the **cards** dataset. Companion datasets, all joinable on `id`:
+
+- **[`t22000t/slay-the-spire-2-card-embeddings`](https://huggingface.co/datasets/t22000t/slay-the-spire-2-card-embeddings)** - 1024-D text embeddings via `Qwen/Qwen3-Embedding-0.6B`
+- **[`t22000t/slay-the-spire-2-card-multimodal-embeddings`](https://huggingface.co/datasets/t22000t/slay-the-spire-2-card-multimodal-embeddings)** - joint text+image embeddings via `Qwen/Qwen3-VL-Embedding-2B`
+
+The full bundle (6 datasets across both games + 3 Gradio demos) is in the [**slaythespire-codex collection**](https://huggingface.co/collections/t22000t/slaythespire-codex).
 
 For Slay the Spire 1, see **[`t22000t/slay-the-spire-1-cards`](https://huggingface.co/datasets/t22000t/slay-the-spire-1-cards)**.
 
@@ -92,7 +96,7 @@ Card-text classification, design analysis, modding, and deckbuilder simulators d
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `image` | image (PNG bytes) | Card portrait art. Decoded to a PIL Image automatically by `datasets.load_dataset()`. Cards without art get `null`. |
+| `image` | HF `Image` feature (`struct<bytes, path>`) | Card portrait art. Decoded to a PIL Image automatically by `datasets.load_dataset()`; via `pd.read_parquet` you'll get a dict (`{"bytes": ..., "path": null}`). Cards without art get `null`. |
 | `image_resolution` | string | Resolution variant of the source asset. |
 
 ## Card art
@@ -154,7 +158,7 @@ The derived feature columns are extracted via best-effort regex tuned for Englis
 ### Other Known Limitations
 
 - **English only** in this snapshot.
-- **Card text only**, no card art, audio, or other media.
+- **Text + portrait art only**, no audio, animations, or other media.
 - **Patch drift**, see above.
 
 ## Provenance

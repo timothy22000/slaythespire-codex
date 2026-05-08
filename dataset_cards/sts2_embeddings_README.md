@@ -26,10 +26,14 @@ configs:
 
 1024-D unit-normalized text embeddings for every card in **Slay the Spire 2** (Early Access), produced by *inference* with the pretrained [`Qwen/Qwen3-Embedding-0.6B`](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B) (frozen, no fine-tuning was done to generate this dataset). **Collected for ML/DL training:** drop directly into a retriever, similarity index, or downstream model that consumes pre-encoded vectors.
 
-This is the **embeddings** dataset. For card metadata (name, cost, description, derived features), see the companion dataset:
-**[`t22000t/slay-the-spire-2-cards`](https://huggingface.co/datasets/t22000t/slay-the-spire-2-cards)**, joinable to this dataset by `id`.
+This is the **text-embeddings** dataset. Companion datasets, all joinable on `id`:
 
-For Slay the Spire 1 embeddings, see **[`t22000t/slay-the-spire-1-card-embeddings`](https://huggingface.co/datasets/t22000t/slay-the-spire-1-card-embeddings)**. Vectors from both games share the same model and instruction prompt, so they're directly comparable for cross-game similarity search.
+- **[`t22000t/slay-the-spire-2-cards`](https://huggingface.co/datasets/t22000t/slay-the-spire-2-cards)** - card metadata + derived features + inline portrait art
+- **[`t22000t/slay-the-spire-2-card-multimodal-embeddings`](https://huggingface.co/datasets/t22000t/slay-the-spire-2-card-multimodal-embeddings)** - joint text+image embeddings via `Qwen/Qwen3-VL-Embedding-2B` (use when portrait similarity matters too)
+
+For Slay the Spire 1 text embeddings, see **[`t22000t/slay-the-spire-1-card-embeddings`](https://huggingface.co/datasets/t22000t/slay-the-spire-1-card-embeddings)**. Vectors from both games share the same model and instruction prompt, so they're directly comparable for cross-game similarity search.
+
+The full bundle (6 datasets across both games + 3 Gradio demos) is in the [**slaythespire-codex collection**](https://huggingface.co/collections/t22000t/slaythespire-codex).
 
 > ⚠️ **Early Access, content is unstable.** STS2 cards change with patches. When the cards dataset is refreshed, this embedding dataset is re-built and re-uploaded. Always check `provenance.json` for the snapshot version and embedding date.
 
