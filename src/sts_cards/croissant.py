@@ -104,6 +104,13 @@ _FIELD_DESCRIPTIONS: dict[str, str] = {
              "`image` column declared as the `Image` feature.",
     "image_resolution": "Source-art resolution variant: 'high' (~1024×1024) "
                         "or 'low' (~256×256).",
+    "multimodal_embedding": "Joint text+image embedding from "
+                            "Qwen/Qwen3-VL-Embedding-2B. Unit-normalized — "
+                            "dot product equals cosine similarity. Cards "
+                            "without art still get a vector via text-only "
+                            "encoding through the same model.",
+    "has_image": "True when the card had a portrait at multimodal embed "
+                 "time (recorded so consumers can filter on it).",
 }
 
 
@@ -120,8 +127,11 @@ def build_croissant(
 
     `kind` is "cards" or "embeddings".
     """
-    if kind not in ("cards", "embeddings"):
-        raise ValueError(f"kind must be 'cards' or 'embeddings', got {kind!r}")
+    if kind not in ("cards", "embeddings", "multimodal-embeddings"):
+        raise ValueError(
+            "kind must be 'cards', 'embeddings', or 'multimodal-embeddings', "
+            f"got {kind!r}"
+        )
 
     df = pd.read_parquet(parquet_path)
 
@@ -160,7 +170,7 @@ def build_croissant(
         record_set_name = "cards"
         record_set_description = f"One row per card in {pretty_game}."
         file_id = "cards-parquet"
-    else:
+    elif kind == "embeddings":
         pretty_name = f"{pretty_game} — Card Embeddings"
         description = (
             f"1024-D text embeddings for every card in {pretty_game}, produced by "
@@ -173,6 +183,22 @@ def build_croissant(
             f"One embedding vector per card in {pretty_game}."
         )
         file_id = "embeddings-parquet"
+    else:  # multimodal-embeddings
+        pretty_name = f"{pretty_game} — Multimodal Card Embeddings"
+        description = (
+            f"Joint text+image embeddings for every card in {pretty_game}, "
+            "produced by Qwen/Qwen3-VL-Embedding-2B with task-instruction "
+            "prompting. Truncated to 1024-D via Matryoshka and unit-normalized "
+            "so dot product equals cosine similarity. Cards without art use "
+            "text-only encoding through the same model so the joint coordinate "
+            "system is preserved across rows. Joinable to the cards dataset "
+            "by `id`."
+        )
+        record_set_name = "multimodal_embeddings"
+        record_set_description = (
+            f"One joint text+image embedding vector per card in {pretty_game}."
+        )
+        file_id = "multimodal-embeddings-parquet"
 
     return {
         "@context": {
@@ -219,7 +245,13 @@ def build_croissant(
         "keywords": [
             "slay-the-spire", "card-game",
             "deckbuilder", "roguelike",
-        ] + (["embeddings", "sentence-transformers"] if kind == "embeddings" else []),
+        ] + (
+            ["embeddings", "sentence-transformers"]
+            if kind == "embeddings" else
+            ["embeddings", "sentence-transformers", "multimodal", "vision-language"]
+            if kind == "multimodal-embeddings" else
+            []
+        ),
         "distribution": [
             {
                 "@type": "sc:FileObject",
@@ -264,8 +296,11 @@ def write_croissant(
     {parquet_dir}/{game}_{kind}_croissant.json so cards and embeddings
     descriptors don't collide.
     """
-    if kind not in ("cards", "embeddings"):
-        raise ValueError(f"kind must be 'cards' or 'embeddings', got {kind!r}")
+    if kind not in ("cards", "embeddings", "multimodal-embeddings"):
+        raise ValueError(
+            "kind must be 'cards', 'embeddings', or 'multimodal-embeddings', "
+            f"got {kind!r}"
+        )
 
     croissant = build_croissant(
         parquet_path, game=game, kind=kind, repo_id=repo_id,

@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-05-08
+
+### Added — multimodal embeddings via Qwen3-VL-Embedding-2B
+
+Each game now publishes a third HuggingFace dataset:
+`slay-the-spire-{1,2}-card-multimodal-embeddings`. Six repos total.
+One unit-normalized 1024-D vector per card, joint text+image space,
+joinable to the cards repos by `id`. Cross-game similarity is preserved
+(same model, same instruction, same dim) so STS1×STS2 dot products work.
+
+- `src/sts_cards/multimodal_embed.py` — new module. Loads
+  `Qwen/Qwen3-VL-Embedding-2B` (Apache 2.0, lazy-imported), pads images
+  to 512×512 RGB on neutral grey, encodes with task-instruction
+  prompting, Matryoshka-truncates to 1024-D, unit-normalizes.
+- `sts-cards embed-multimodal {game}` — new CLI command. Mirrors the
+  existing `embed` flags (`--model`, `--task-instruction`,
+  `--matryoshka-dim`, `--batch-size`, `--device`) with multimodal
+  defaults (dim=1024, batch=4 — VL + images is heavier).
+- `MultimodalEmbedProvenance` dataclass on `DatasetProvenance.multimodal_embed`
+  records model id, dim, instruction, image preprocessing recipe,
+  `n_with_image`, `n_without_image`.
+- `croissant.py` accepts `kind="multimodal-embeddings"` with its own
+  pretty name and keyword set; new `image` and `multimodal_embedding`
+  field descriptions.
+- `upload.py` adds `_files_for_multimodal_embeddings` and routes the
+  new kind. Inside the repo the file is named `embeddings.parquet`
+  (same as the text-embeddings repo) so consumer code is portable.
+- Two new dataset cards in `dataset_cards/`.
+- `.github/workflows/upload-multimodal.yml` — manual workflow_dispatch
+  to publish a locally-encoded parquet. NOT wired into `refresh.yml`
+  because the 2B model + image tensors won't fit on a free GH runner.
+- 8 new tests bringing the total to 117.
+
+### Changed
+
+- `REPO_KINDS` extends to `("cards", "embeddings", "multimodal-embeddings")`.
+- STS2 art extraction switched to `gdre_tools --recover` with targeted
+  `--include` globs (recovery decodes `.ctex` blobs back to PNG; raw
+  `--extract` returned the compressed textures unchanged). 100% match
+  on STS2 (576/576), ~99.7% on STS1.
+- `extract_art.candidate_keys` now also feeds the STS2 PCK path so
+  parquet ids in SCREAMING_SNAKE_CASE join cleanly to lowercase
+  recovered stems (case + word-split aware, same alias table as STS1
+  plus `MAD_SCIENCE → mad_science_attack`).
+
 ## [0.4.0] - 2026-05-08
 
 ### Added — card art as a column on the cards Parquet

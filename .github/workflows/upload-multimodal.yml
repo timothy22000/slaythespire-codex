@@ -1,0 +1,100 @@
+name: Upload multimodal embeddings
+
+# Manual upload of {game}_multimodal_embeddings.parquet after a local
+# `sts-cards embed-multimodal {game}` run. CI does NOT run multimodal
+# embedding — Qwen3-VL-Embedding-2B + image tensors won't fit on the
+# 7 GB free GitHub runner. The local run produces the parquet; this
+# workflow just publishes it.
+
+on:
+  workflow_dispatch:
+    inputs:
+      game:
+        description: "Which game's multimodal embeddings repo to refresh"
+        required: true
+        type: choice
+        options:
+          - sts1
+          - sts2
+        default: sts1
+      artifact_name:
+        description: "Name of an artifact (uploaded by another workflow run) "
+                     "containing output/{game}_multimodal_embeddings.parquet. "
+                     "Leave blank to use whatever is already in output/."
+        required: false
+        type: string
+        default: ""
+
+env:
+  STS1_MM_REPO: t22000t/slay-the-spire-1-card-multimodal-embeddings
+  STS2_MM_REPO: t22000t/slay-the-spire-2-card-multimodal-embeddings
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install with upload extras
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[upload]"
+
+      - name: Resolve repo
+        id: resolve
+        run: |
+          GAME="${{ github.event.inputs.game }}"
+          if [ "$GAME" = "sts1" ]; then
+            REPO="${{ env.STS1_MM_REPO }}"
+          else
+            REPO="${{ env.STS2_MM_REPO }}"
+          fi
+          echo "game=$GAME" >> "$GITHUB_OUTPUT"
+          echo "repo=$REPO" >> "$GITHUB_OUTPUT"
+
+      - name: Pull staged Parquet artifact (optional)
+        if: ${{ github.event.inputs.artifact_name != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ github.event.inputs.artifact_name }}
+          path: output/
+
+      - name: Verify multimodal embeddings parquet exists
+        run: |
+          python - <<'PY'
+          import pandas as pd, sys
+          p = "output/${{ steps.resolve.outputs.game }}_multimodal_embeddings.parquet"
+          try:
+              df = pd.read_parquet(p)
+          except FileNotFoundError:
+              sys.exit(
+                  f"::error::{p} not found. Run "
+                  f"`sts-cards embed-multimodal ${{ steps.resolve.outputs.game }}` "
+                  "locally first, then re-upload the parquet as a workflow artifact."
+              )
+          assert "multimodal_embedding" in df.columns, "missing column"
+          print(f"{p}: {len(df)} rows, dim={len(df['multimodal_embedding'].iloc[0])}")
+          PY
+
+      - name: Generate Croissant
+        run: |
+          sts-cards croissant ${{ steps.resolve.outputs.game }} \
+            --kind multimodal-embeddings --repo ${{ steps.resolve.outputs.repo }}
+
+      - name: Upload multimodal embeddings repo
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          if [ -z "$HF_TOKEN" ]; then
+            echo "::warning::HF_TOKEN secret not set — skipping upload"
+            exit 0
+          fi
+          sts-cards upload ${{ steps.resolve.outputs.game }} \
+            --kind multimodal-embeddings --repo ${{ steps.resolve.outputs.repo }}

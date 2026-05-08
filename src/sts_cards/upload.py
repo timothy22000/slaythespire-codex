@@ -49,13 +49,34 @@ def _files_for_embeddings(game: str, out_dir: Path) -> list[tuple[Path, str]]:
     return pairs
 
 
+def _files_for_multimodal_embeddings(game: str, out_dir: Path) -> list[tuple[Path, str]]:
+    """Files for the multimodal-embeddings repo. Inside the repo the
+    file is named `embeddings.parquet` (same as the text-embeddings repo)
+    so consumer code can target either repo with the same path."""
+    pairs: list[tuple[Path, str]] = []
+    for src_name, in_repo_name in [
+        (f"{game}_multimodal_embeddings.parquet", "embeddings.parquet"),
+        (f"{game}_provenance.json", "provenance.json"),
+        (f"{game}_multimodal-embeddings_croissant.json", "croissant.json"),
+    ]:
+        src = out_dir / src_name
+        if src.exists():
+            pairs.append((src, in_repo_name))
+    return pairs
+
+
 def files_for(game: str, kind: str, out_dir: Path) -> list[tuple[Path, str]]:
     """Resolve which files belong in which repo kind."""
     if kind == "cards":
         return _files_for_cards(game, out_dir)
     if kind == "embeddings":
         return _files_for_embeddings(game, out_dir)
-    raise ValueError(f"unknown kind: {kind!r} (expected 'cards' or 'embeddings')")
+    if kind == "multimodal-embeddings":
+        return _files_for_multimodal_embeddings(game, out_dir)
+    raise ValueError(
+        f"unknown kind: {kind!r} "
+        "(expected 'cards', 'embeddings', or 'multimodal-embeddings')"
+    )
 
 
 def upload(
@@ -70,8 +91,11 @@ def upload(
     """Push one (game, kind) combination to its HuggingFace dataset repo."""
     from huggingface_hub import HfApi, create_repo
 
-    if kind not in ("cards", "embeddings"):
-        raise ValueError(f"kind must be 'cards' or 'embeddings', got {kind!r}")
+    if kind not in ("cards", "embeddings", "multimodal-embeddings"):
+        raise ValueError(
+            "kind must be 'cards', 'embeddings', or 'multimodal-embeddings', "
+            f"got {kind!r}"
+        )
 
     api = HfApi()
     create_repo(repo_id=repo, repo_type="dataset", private=private, exist_ok=True)

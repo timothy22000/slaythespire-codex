@@ -55,6 +55,28 @@ class EmbedProvenance:
 
 
 @dataclass
+class MultimodalEmbedProvenance:
+    """Records how joint text+image embeddings were produced.
+
+    Distinct from `EmbedProvenance` so the two encoders can re-version
+    on independent cadences.
+    """
+    model_id: str
+    embedding_dim: int
+    task_instruction: str
+    embedded_at: str
+    image_preprocessing: str  # e.g. "rgb-resize-pad-512x512-grey"
+    n_with_image: int
+    n_without_image: int
+    matryoshka_dim: int | None = None
+    model_revision: str | None = None
+    sentence_transformers_version: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass
 class ArtProvenance:
     """Records how card portrait art was extracted from local game files.
 
@@ -84,6 +106,7 @@ class DatasetProvenance:
     """Top-level provenance attached to each dataset snapshot."""
     fetch: FetchProvenance
     embed: EmbedProvenance | None = None
+    multimodal_embed: MultimodalEmbedProvenance | None = None
     art: ArtProvenance | None = None
     package_version: str = __version__
     python_version: str = field(default_factory=lambda: sys.version.split()[0])
@@ -93,6 +116,8 @@ class DatasetProvenance:
         return {
             "fetch": self.fetch.to_dict(),
             "embed": self.embed.to_dict() if self.embed else None,
+            "multimodal_embed": (self.multimodal_embed.to_dict()
+                                 if self.multimodal_embed else None),
             "art": self.art.to_dict() if self.art else None,
             "package_version": self.package_version,
             "python_version": self.python_version,
@@ -108,6 +133,10 @@ class DatasetProvenance:
         data = json.loads(path.read_text())
         fetch = FetchProvenance(**data["fetch"])
         embed = EmbedProvenance(**data["embed"]) if data.get("embed") else None
+        multimodal_embed = (
+            MultimodalEmbedProvenance(**data["multimodal_embed"])
+            if data.get("multimodal_embed") else None
+        )
         art = None
         if data.get("art"):
             art_data = dict(data["art"])
@@ -118,6 +147,7 @@ class DatasetProvenance:
         return cls(
             fetch=fetch,
             embed=embed,
+            multimodal_embed=multimodal_embed,
             art=art,
             package_version=data.get("package_version", "unknown"),
             python_version=data.get("python_version", "unknown"),

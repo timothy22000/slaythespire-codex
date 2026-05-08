@@ -10,6 +10,7 @@ from sts_cards.provenance import (
     DatasetProvenance,
     EmbedProvenance,
     FetchProvenance,
+    MultimodalEmbedProvenance,
     now_iso,
 )
 
@@ -122,6 +123,65 @@ def test_art_provenance_roundtrip(tmp_path):
     # Tuple is preserved across the JSON round-trip
     assert loaded.art.image_dimensions == (1024, 1024)
     assert loaded.art.gdre_tools_version is None
+
+
+def test_multimodal_embed_provenance_roundtrip(tmp_path):
+    prov = DatasetProvenance(
+        fetch=FetchProvenance(source="x", source_fetched_at="t",
+                              game="sts1", language="en", n_cards=360),
+        embed=EmbedProvenance(
+            model_id="Qwen/Qwen3-Embedding-0.6B",
+            embedding_dim=1024,
+            task_instruction="text instruction",
+            embedded_at="2026-05-08T00:00:00+00:00",
+        ),
+        multimodal_embed=MultimodalEmbedProvenance(
+            model_id="Qwen/Qwen3-VL-Embedding-2B",
+            embedding_dim=1024,
+            task_instruction="multimodal instruction",
+            embedded_at="2026-05-08T01:00:00+00:00",
+            image_preprocessing="rgb-resize-pad-512x512-grey",
+            n_with_image=359,
+            n_without_image=1,
+            matryoshka_dim=1024,
+            sentence_transformers_version="3.0.1",
+        ),
+    )
+    out = tmp_path / "p.json"
+    prov.write(out)
+
+    loaded = DatasetProvenance.read(out)
+    assert loaded.embed is not None
+    assert loaded.multimodal_embed is not None
+    # Both blocks coexist independently
+    assert loaded.embed.model_id == "Qwen/Qwen3-Embedding-0.6B"
+    assert loaded.multimodal_embed.model_id == "Qwen/Qwen3-VL-Embedding-2B"
+    assert loaded.multimodal_embed.image_preprocessing == "rgb-resize-pad-512x512-grey"
+    assert loaded.multimodal_embed.n_with_image == 359
+    assert loaded.multimodal_embed.n_without_image == 1
+
+
+def test_multimodal_embed_provenance_alone(tmp_path):
+    """A run that only produced multimodal embeddings (no text embed step)
+    serializes with `embed=None`."""
+    prov = DatasetProvenance(
+        fetch=FetchProvenance(source="x", source_fetched_at="t",
+                              game="sts1", language="en", n_cards=10),
+        multimodal_embed=MultimodalEmbedProvenance(
+            model_id="Qwen/Qwen3-VL-Embedding-2B",
+            embedding_dim=1024,
+            task_instruction="t",
+            embedded_at="2026-05-08T00:00:00+00:00",
+            image_preprocessing="rgb-resize-pad-512x512-grey",
+            n_with_image=10,
+            n_without_image=0,
+        ),
+    )
+    out = tmp_path / "p.json"
+    prov.write(out)
+    loaded = DatasetProvenance.read(out)
+    assert loaded.embed is None
+    assert loaded.multimodal_embed is not None
 
 
 def test_art_provenance_with_gdre_version(tmp_path):

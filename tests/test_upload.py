@@ -64,6 +64,29 @@ def test_unknown_kind_raises(tmp_path):
         files_for("sts1", "garbage", tmp_path)
 
 
+def test_multimodal_embeddings_kind_picks_right_files(tmp_path):
+    _touch(tmp_path / "sts1_multimodal_embeddings.parquet")
+    _touch(tmp_path / "sts1_provenance.json")
+    _touch(tmp_path / "sts1_multimodal-embeddings_croissant.json")
+    # Files that should NOT be picked up
+    _touch(tmp_path / "sts1_cards.parquet")
+    _touch(tmp_path / "sts1_embeddings.parquet")
+    _touch(tmp_path / "sts1_embeddings_croissant.json")
+
+    pairs = files_for("sts1", "multimodal-embeddings", tmp_path)
+    in_repo_names = {p[1] for p in pairs}
+    # Inside the repo, the parquet is named `embeddings.parquet` — same
+    # surface as the text-embeddings repo so consumer code is portable.
+    assert in_repo_names == {"embeddings.parquet", "provenance.json", "croissant.json"}
+
+    src_names = {p[0].name for p in pairs}
+    # The text-embeddings parquet must NOT be picked
+    assert "sts1_embeddings.parquet" not in src_names
+    assert "sts1_cards.parquet" not in src_names
+    assert "sts1_multimodal_embeddings.parquet" in src_names
+    assert "sts1_multimodal-embeddings_croissant.json" in src_names
+
+
 def test_missing_files_silently_skipped(tmp_path):
     # Only provenance exists; cards parquet doesn't
     _touch(tmp_path / "sts1_provenance.json")

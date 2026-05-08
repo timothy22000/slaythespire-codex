@@ -47,14 +47,23 @@ JAR_PATHS = {
     "high": "images/1024Portraits/",
 }
 
-# STS2 sts2.pck path discovered by `diagnose-art sts2`. Hardcoded after
-# Stage 0 verifies the prefix is stable. If a future patch moves things,
-# `diagnose_pck` will surface the new prefix and this constant is updated.
-PCK_CARD_PATH_HINTS = (
-    "cards/portraits/",
-    "art/cards/",
-    "card_art/",
+# STS2 portraits live at res://images/packed/card_portraits/<character>/<card>.png
+# inside the PCK (Godot import descriptors). The actual texture bytes are stored
+# as .ctex (compressed texture) at res://.godot/imported/<name>-<hash>.ctex —
+# `gdre_tools --recover` converts them back to PNG and writes them to the
+# logical source path.
+#
+# Recovery needs BOTH the descriptors (which give it the source paths) AND the
+# imported .ctex blobs (which carry the bytes). Globs match files actually in
+# the PCK, not source paths — that's why "res://**/card_portraits/**/*.png"
+# alone returns zero matches: source PNGs aren't in the PCK, only the
+# .png.import descriptors and the .ctex blobs are.
+PCK_CARD_PORTRAIT_DIR = "images/packed/card_portraits"
+PCK_INCLUDE_GLOBS = (
+    "res://**/card_portraits/**/*.png.import",
+    "res://.godot/imported/*.ctex",
 )
+PCK_CARD_PATH_HINTS = (PCK_CARD_PORTRAIT_DIR + "/",)
 
 
 # Parquet card ids (from spire-archive) and JAR portrait stems use different
@@ -72,6 +81,10 @@ STS1_ID_ALIASES: dict[str, str] = {
     "MULTI_CAST":    "multicast",
     "THUNDERCLAP":   "thunder_clap",
     "WREATHOFFLAME": "wreathe_of_flame",  # plain typo in the JAR asset name
+    # STS2 — Necrobinder card that morphs into one of three variants.
+    # Pick the attack flavor as the canonical portrait; the other two
+    # (mad_science_power, mad_science_skill) stay unmapped on purpose.
+    "MAD_SCIENCE":   "mad_science_attack",
 }
 
 
@@ -377,18 +390,27 @@ def _gdre_cache_dir(pck_path: Path) -> Path:
     return base / "sts-cards" / "gdre" / sha[:16]
 
 
-def _run_gdre(binary: str, pck_path: Path, out_dir: Path) -> None:
-    """Shell out to GDRE Tools to extract every file in the PCK.
+def _run_gdre(
+    binary: str,
+    pck_path: Path,
+    out_dir: Path,
+    include_globs: tuple[str, ...] = PCK_INCLUDE_GLOBS,
+) -> None:
+    """Run GDRE Tools to recover card-portrait PNGs from the PCK.
 
-    Uses `--extract` (raw file extraction) rather than `--recover` (full
-    project decompile) — we only need PNG bytes, not a runnable project.
+    Uses `--recover` (not `--extract`) because Godot stores assets as
+    `.ctex` compressed textures; recovery is what reconverts them back
+    to source PNGs at their logical paths. The `--include` globs scope
+    work to portraits — without them, recovery on a 1.7 GB PCK takes
+    tens of minutes and produces gigabytes of unrelated assets.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
     cmd = [
         binary, "--headless",
-        f"--extract={pck_path}",
+        f"--recover={pck_path}",
         f"--output={out_dir}",
     ]
+    cmd.extend(f"--include={glob}" for glob in include_globs)
     log.info("Running GDRE Tools: %s", " ".join(cmd))
     r = subprocess.run(cmd, capture_output=True, text=True)
     if r.returncode != 0:
@@ -399,9 +421,16 @@ def _run_gdre(binary: str, pck_path: Path, out_dir: Path) -> None:
 
 def _walk_pngs_into_id_map(root: Path, card_ids: set[str] | None) -> dict[str, bytes]:
     """Walk the GDRE output directory and pull PNGs whose stem is a
-    known card id (when `card_ids` is provided) or every PNG (when None)."""
+    known card id (when `card_ids` is provided) or every PNG (when None).
+
+    Prefers walking the canonical card_portraits/ subtree if it exists
+    (faster — skips the rest of the recovered project) and falls back
+    to a full rglob so synthetic test fixtures still work.
+    """
+    portraits_root = root / PCK_CARD_PORTRAIT_DIR
+    walk_root = portraits_root if portraits_root.exists() else root
     out: dict[str, bytes] = {}
-    for path in root.rglob("*.png"):
+    for path in walk_root.rglob("*.png"):
         stem = path.stem
         if card_ids is not None and stem not in card_ids:
             continue
@@ -449,9 +478,13 @@ def diagnose_pck(
     gdre_tools_path: str = "gdre_tools",
     work_dir: Path | None = None,
 ) -> DiagnosticResult:
-    """Run GDRE Tools and figure out which directory holds card portraits."""
+    """Run GDRE Tools, walk the recovered `card_portraits/` tree, and
+    report the join rate against `cards.parquet["id"]` using the same
+    multi-candidate keying as the JAR path (lower(id), suffix-stripped,
+    name-normalized, alias-table).
+    """
     cards_df = pd.read_parquet(cards_parquet)
-    card_ids = set(cards_df["id"].astype(str))
+    rows = list(cards_df[["id", "name"]].itertuples(index=False, name=None))
 
     binary = _resolve_gdre(gdre_tools_path)
     cache_dir = _gdre_cache_dir(pck_path) if work_dir is None else Path(work_dir)
@@ -460,42 +493,46 @@ def diagnose_pck(
         _run_gdre(binary, pck_path, cache_dir)
         sentinel.touch()
 
-    # Walk every PNG; bucket by parent directory; intersect each bucket with
-    # the card-id set so we can spot the most likely portrait directory.
-    parent_to_stems: dict[str, set[str]] = {}
-    parent_to_total: Counter[str] = Counter()
-    for path in cache_dir.rglob("*.png"):
-        rel = path.relative_to(cache_dir)
-        parent = str(rel.parent).replace(os.sep, "/")
-        parent_to_stems.setdefault(parent, set()).add(path.stem)
-        parent_to_total[parent] += 1
+    portraits_root = cache_dir / PCK_CARD_PORTRAIT_DIR
+    walk_root = portraits_root if portraits_root.exists() else cache_dir
 
-    matched_per_parent = {
-        parent: stems & card_ids for parent, stems in parent_to_stems.items()
-    }
-    if matched_per_parent:
-        primary_parent = max(matched_per_parent, key=lambda p: len(matched_per_parent[p]))
-    else:
-        primary_parent = None
+    # Collect every PNG stem under the portrait tree, plus per-character bucket
+    # counts for the diagnostic report.
+    all_stems: set[str] = set()
+    bucket_counts: Counter[str] = Counter()
+    for path in walk_root.rglob("*.png"):
+        all_stems.add(path.stem)
+        rel = path.relative_to(walk_root)
+        # Per-character bucket = first directory component (e.g. "regent")
+        bucket = rel.parts[0] if len(rel.parts) > 1 else "(root)"
+        bucket_counts[bucket] += 1
 
-    matched = matched_per_parent.get(primary_parent, set()) if primary_parent else set()
-    unmatched_in_source = sorted(
-        s for s in parent_to_stems.get(primary_parent, set()) if s not in card_ids
-    ) if primary_parent else []
-    unmatched_in_parquet = sorted(card_ids - matched)
+    matched_ids: set[str] = set()
+    used_keys: set[str] = set()
+    unmatched_parquet: list[str] = []
+    for cid, name in rows:
+        cid_s, name_s = str(cid), str(name) if name else None
+        for c in candidate_keys(cid_s, name_s):
+            if c in all_stems:
+                matched_ids.add(cid_s)
+                used_keys.add(c)
+                break
+        else:
+            unmatched_parquet.append(cid_s)
+    unmatched_source = sorted(all_stems - used_keys)
 
     return DiagnosticResult(
         game="sts2",
         extraction_source="pck",
         candidate_paths=list(PCK_CARD_PATH_HINTS),
-        n_images_in_source={k: int(v) for k, v in parent_to_total.most_common(10)},
-        n_cards_in_parquet=len(card_ids),
-        n_matched=len(matched),
-        match_rate=len(matched) / max(len(card_ids), 1),
-        matched_ids_sample=sorted(matched)[:20],
-        unmatched_in_source=unmatched_in_source,
-        unmatched_in_parquet=unmatched_in_parquet,
-        most_common_path_prefix=primary_parent,
+        n_images_in_source={k: int(v) for k, v in bucket_counts.most_common(15)},
+        n_cards_in_parquet=len(rows),
+        n_matched=len(matched_ids),
+        match_rate=len(matched_ids) / max(len(rows), 1),
+        matched_ids_sample=sorted(matched_ids)[:20],
+        unmatched_in_source=unmatched_source,
+        unmatched_in_parquet=sorted(unmatched_parquet),
+        most_common_path_prefix=PCK_CARD_PORTRAIT_DIR if portraits_root.exists() else None,
     )
 
 

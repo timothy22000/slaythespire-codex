@@ -23,7 +23,15 @@ from pathlib import Path
 import pandas as pd
 import typer
 
-from . import DEFAULT_MODEL, DEFAULT_TASK_INSTRUCTION, GAMES, __version__
+from . import (
+    DEFAULT_MODEL,
+    DEFAULT_MULTIMODAL_DIM,
+    DEFAULT_MULTIMODAL_MODEL,
+    DEFAULT_MULTIMODAL_TASK_INSTRUCTION,
+    DEFAULT_TASK_INSTRUCTION,
+    GAMES,
+    __version__,
+)
 
 app = typer.Typer(
     name="sts-cards",
@@ -111,6 +119,48 @@ def embed(
     typer.echo(f"Wrote {out_path}")
 
 
+@app.command(name="embed-multimodal")
+def embed_multimodal(
+    game: str = typer.Argument(..., help=f"One of {GAMES}"),
+    out_dir: Path = typer.Option(Path("output"), "--out-dir"),
+    model: str = typer.Option(DEFAULT_MULTIMODAL_MODEL, "--model"),
+    task_instruction: str = typer.Option(
+        DEFAULT_MULTIMODAL_TASK_INSTRUCTION, "--task-instruction",
+        help="Pass '' to disable.",
+    ),
+    matryoshka_dim: int = typer.Option(
+        DEFAULT_MULTIMODAL_DIM, "--matryoshka-dim",
+        help="Truncate to this dim and re-normalize. Default 1024 matches "
+             "the text embeddings.",
+    ),
+    batch_size: int = typer.Option(4, "--batch-size",
+                                   help="Smaller than text-embed default — "
+                                        "VL model + image tensors are heavier."),
+    device: str | None = typer.Option(None, "--device"),
+) -> None:
+    """Joint text+image embeddings via Qwen3-VL-Embedding-2B.
+
+    Reads `{game}_cards.parquet` (must already have an `image` column —
+    run `extract-art` first to populate it). Writes
+    `{game}_multimodal_embeddings.parquet` plus updated provenance with
+    a `multimodal_embed` block. Cards without art go through text-only
+    via the same model so the joint coordinate system is preserved.
+    """
+    from .multimodal_embed import embed_multimodal_game
+    _check_game(game)
+    in_path = out_dir / f"{game}_cards.parquet"
+    if not in_path.exists():
+        raise typer.BadParameter(
+            f"{in_path} not found — run `sts-cards fetch {game}` first"
+        )
+    out_path = embed_multimodal_game(
+        in_path, out_dir,
+        game=game, model_id=model, task_instruction=task_instruction,
+        matryoshka_dim=matryoshka_dim, batch_size=batch_size, device=device,
+    )
+    typer.echo(f"Wrote {out_path}")
+
+
 @app.command()
 def visualize(
     game: str = typer.Argument(..., help=f"One of {GAMES}"),
@@ -184,13 +234,16 @@ def croissant(
     """Generate a Croissant JSON-LD descriptor for one (game, kind) dataset."""
     from .croissant import write_croissant
     _check_game(game)
-    if kind not in ("cards", "embeddings"):
-        raise typer.BadParameter("kind must be 'cards' or 'embeddings'")
+    if kind not in ("cards", "embeddings", "multimodal-embeddings"):
+        raise typer.BadParameter(
+            "kind must be 'cards', 'embeddings', or 'multimodal-embeddings'"
+        )
 
-    parquet_name = (
-        f"{game}_cards.parquet" if kind == "cards"
-        else f"{game}_embeddings.parquet"
-    )
+    parquet_name = {
+        "cards": f"{game}_cards.parquet",
+        "embeddings": f"{game}_embeddings.parquet",
+        "multimodal-embeddings": f"{game}_multimodal_embeddings.parquet",
+    }[kind]
     parquet_path = out_dir / parquet_name
     if not parquet_path.exists():
         raise typer.BadParameter(f"{parquet_path} not found")
@@ -219,8 +272,10 @@ def upload(
     """Upload one (game, kind) dataset to its HuggingFace repo."""
     from .upload import upload as upload_fn
     _check_game(game)
-    if kind not in ("cards", "embeddings"):
-        raise typer.BadParameter("kind must be 'cards' or 'embeddings'")
+    if kind not in ("cards", "embeddings", "multimodal-embeddings"):
+        raise typer.BadParameter(
+            "kind must be 'cards', 'embeddings', or 'multimodal-embeddings'"
+        )
 
     if readme is None:
         readme = Path("dataset_cards") / f"{game}_{kind}_README.md"
@@ -332,11 +387,13 @@ def extract_art(
         gdre_version = None
     else:
         source_path = locate_pck(pck_path)
-        # Prefilter to known card ids so cache + attach skip non-card PNGs.
-        ids = set(pd.read_parquet(cards_parquet)["id"].astype(str))
+        # Don't prefilter on raw card ids — parquet ids are SCREAMING_SNAKE_CASE
+        # and the recovered PCK stems are lowercase. attach_art_to_cards uses
+        # candidate_keys() to do the case-insensitive + name-aware lookup,
+        # same as the JAR path.
         art = extract_pck_to_memory(
             source_path, resolution=resolution,
-            gdre_tools_path=gdre_tools_path, card_ids=ids,
+            gdre_tools_path=gdre_tools_path,
         )
         extraction_source = "pck"
         try:

@@ -203,6 +203,30 @@ def test_write_croissant_filename_includes_kind(sample_cards_parquet):
     assert "cards" in out_cards.name
 
 
+def test_build_croissant_multimodal_embeddings_kind(tmp_path):
+    """multimodal-embeddings kind has its own pretty name, keyword set,
+    and field descriptions."""
+    import numpy as np
+    df = pd.DataFrame([
+        {"id": "Strike_R", "game": "sts1", "name": "Strike",
+         "card_text": '{"name": "Strike"}', "has_image": True,
+         "multimodal_embedding": np.array([0.1] * 1024, dtype=np.float32)},
+    ])
+    out = tmp_path / "sts1_multimodal_embeddings.parquet"
+    df.to_parquet(out, index=False)
+
+    cr = build_croissant(
+        out, game="sts1", kind="multimodal-embeddings",
+        repo_id="user/slay-the-spire-1-card-multimodal-embeddings",
+    )
+    assert "Multimodal Card Embeddings" in cr["name"]
+    assert "multimodal" in cr["keywords"]
+    assert "vision-language" in cr["keywords"]
+    assert cr["recordSet"][0]["@id"] == "multimodal_embeddings"
+    field_names = {f["name"] for f in cr["recordSet"][0]["field"]}
+    assert {"id", "multimodal_embedding", "has_image"}.issubset(field_names)
+
+
 def test_croissant_maps_image_column_to_imageobject(tmp_path):
     """When the cards Parquet has an `image` bytes column, Croissant must
     label it as `sc:ImageObject` so HF and Google Dataset Search recognize

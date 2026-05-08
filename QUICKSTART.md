@@ -36,9 +36,9 @@ pip install -e ".[embed]"
 ## 3. Verify the install
 
 ```bash
-pytest                        # ~101 tests should pass in ~2s
-sts-cards --help              # CLI help should render with 10 commands
-sts-cards version             # → 0.4.0
+pytest                        # ~117 tests should pass in ~2s
+sts-cards --help              # CLI help should render with 11 commands
+sts-cards version             # → 0.5.0
 ```
 
 ## 4. Run the pipeline (no HF account needed)
@@ -83,6 +83,27 @@ sts-cards extract-art  sts2 --gdre-tools-path /path/to/gdre_tools
 the source-file SHA-256 and extraction timestamp. Run it AFTER `fetch` and
 BEFORE `embed`. Embedding does not change — image data isn't part of
 `card_text`.
+
+## 5c. Multimodal embeddings (optional)
+
+Joint text+image embeddings via Qwen3-VL-Embedding-2B. Local-only — the
+2B model + image tensors don't fit on a free GitHub runner. Run AFTER
+`extract-art` so the cards Parquet has portraits to encode. Cards
+without art still get a vector via text-only encoding through the same
+model, preserving the joint coordinate system.
+
+```bash
+sts-cards extract-art      sts1
+sts-cards embed-multimodal sts1                   # ~5 min on Apple Silicon GPU
+sts-cards croissant sts1 --kind multimodal-embeddings \
+  --repo t22000t/slay-the-spire-1-card-multimodal-embeddings
+sts-cards upload    sts1 --kind multimodal-embeddings \
+  --repo t22000t/slay-the-spire-1-card-multimodal-embeddings
+```
+
+The output is `output/{game}_multimodal_embeddings.parquet` with columns
+`id, game, name, card_text, has_image, multimodal_embedding (1024D)`.
+Provenance is updated with a `multimodal_embed` block.
 
 ## 6. Cross-game similarity
 
