@@ -223,8 +223,9 @@ def _card_cell_html(p: Any, max_sim: float) -> str:
         cell_cls += " bmd-card-locked-bg"
     if p.similarity >= 0.70 and not p.locked:
         cell_cls += " bmd-card-strong"
+    color_attr = _html.escape(str(p.color or "colorless").lower())
     return (
-        f'<div class="{cell_cls}">'
+        f'<div class="{cell_cls}" data-char="{color_attr}">'
         f'<div class="bmd-card-row1">'
         f'<span class="bmd-card-name">{_html.escape(p.name)}</span>'
         f'<span class="bmd-card-cost">{_html.escape(cost)}</span>'
@@ -438,13 +439,17 @@ CUSTOM_CSS = """
    decorative gradients. Spacing on a 4px grid.
    ============================================================ */
 :root {
-  --bmd-accent: #b45309;          /* amber-700, subdued for serious tools */
+  --bmd-accent: #d97706;          /* amber-600, slightly more vibrant */
   --bmd-accent-soft: #fef3c7;     /* amber-100 */
-  --bmd-accent-ring: rgba(180,83,9,0.18);
-  --bmd-success: #047857;
-  --bmd-warning: #b45309;
-  --bmd-danger:  #b91c1c;
-  --bmd-info:    #1d4ed8;
+  --bmd-accent-ring: rgba(217,119,6,0.22);
+  --bmd-success: #16a34a;
+  --bmd-success-soft: #dcfce7;
+  --bmd-warning: #d97706;
+  --bmd-warning-soft:#fef3c7;
+  --bmd-danger:  #dc2626;
+  --bmd-danger-soft:#fee2e2;
+  --bmd-info:    #2563eb;
+  --bmd-info-soft:#dbeafe;
   --bmd-fg:      #1c1917;
   --bmd-fg-muted:#57534e;
   --bmd-fg-soft: #78716c;
@@ -452,15 +457,29 @@ CUSTOM_CSS = """
   --bmd-surface-2:#fafaf9;
   --bmd-border:  #e7e5e4;
   --bmd-border-strong:#d6d3d1;
+
+  /* Canonical STS character colors */
+  --color-ironclad:    #dc2626;
+  --color-silent:      #16a34a;
+  --color-defect:      #2563eb;
+  --color-watcher:     #9333ea;
+  --color-necrobinder: #475569;
+  --color-regent:      #ca8a04;
+  --color-colorless:   #78716c;
+  --color-curse:       #44403c;
 }
 .dark, .gradio-container.dark {
   --bmd-accent: #f59e0b;
-  --bmd-accent-soft: rgba(245,158,11,0.10);
-  --bmd-accent-ring: rgba(245,158,11,0.28);
-  --bmd-success: #34d399;
+  --bmd-accent-soft: rgba(245,158,11,0.14);
+  --bmd-accent-ring: rgba(245,158,11,0.32);
+  --bmd-success: #4ade80;
+  --bmd-success-soft: rgba(74,222,128,0.14);
   --bmd-warning: #fbbf24;
+  --bmd-warning-soft:rgba(251,191,36,0.14);
   --bmd-danger:  #f87171;
+  --bmd-danger-soft:rgba(248,113,113,0.14);
   --bmd-info:    #60a5fa;
+  --bmd-info-soft:rgba(96,165,250,0.14);
   --bmd-fg:      #f5f5f4;
   --bmd-fg-muted:#a8a29e;
   --bmd-fg-soft: #78716c;
@@ -468,6 +487,15 @@ CUSTOM_CSS = """
   --bmd-surface-2:#292524;
   --bmd-border:  #292524;
   --bmd-border-strong:#44403c;
+
+  --color-ironclad:    #f87171;
+  --color-silent:      #4ade80;
+  --color-defect:      #60a5fa;
+  --color-watcher:     #c084fc;
+  --color-necrobinder: #94a3b8;
+  --color-regent:      #fbbf24;
+  --color-colorless:   #a8a29e;
+  --color-curse:       #78716c;
 }
 
 .gradio-container {
@@ -592,40 +620,68 @@ CUSTOM_CSS = """
 }
 .bmd-game-pills input[type="radio"] { display: none; }
 
-/* Character dropdown — visually heavier per design ask */
+/* Character dropdown — visually heavier per design ask, character-themed */
 .bmd-char-dropdown {
   font-size: 13.5px !important;
+  --char-color: var(--bmd-accent);
+  --char-color-soft: var(--bmd-accent-soft);
 }
+.bmd-char-dropdown:has(input[value="ironclad"]),
+.bmd-char-dropdown[data-char="ironclad"] {
+  --char-color: var(--color-ironclad);
+}
+.bmd-char-dropdown:has(input[value="silent"]),
+.bmd-char-dropdown[data-char="silent"] {
+  --char-color: var(--color-silent);
+}
+.bmd-char-dropdown:has(input[value="defect"]),
+.bmd-char-dropdown[data-char="defect"] {
+  --char-color: var(--color-defect);
+}
+.bmd-char-dropdown:has(input[value="watcher"]),
+.bmd-char-dropdown[data-char="watcher"] {
+  --char-color: var(--color-watcher);
+}
+.bmd-char-dropdown:has(input[value="necrobinder"]),
+.bmd-char-dropdown[data-char="necrobinder"] {
+  --char-color: var(--color-necrobinder);
+}
+.bmd-char-dropdown:has(input[value="regent"]),
+.bmd-char-dropdown[data-char="regent"] {
+  --char-color: var(--color-regent);
+}
+
 .bmd-char-dropdown .wrap,
 .bmd-char-dropdown > div > div {
-  background: var(--bmd-accent-soft) !important;
-  border: 1px solid var(--bmd-accent) !important;
+  background: color-mix(in srgb, var(--char-color) 8%, var(--bmd-surface)) !important;
+  border: 1.5px solid var(--char-color) !important;
   border-radius: 8px !important;
   padding: 2px 6px 2px 4px !important;
   min-height: 36px !important;
-  transition: box-shadow 0.15s ease;
+  transition: box-shadow 0.15s ease, background 0.2s ease, border-color 0.2s ease;
 }
 .bmd-char-dropdown:hover .wrap,
 .bmd-char-dropdown:focus-within .wrap {
-  box-shadow: 0 0 0 4px var(--bmd-accent-ring);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--char-color) 22%, transparent);
 }
 .bmd-char-dropdown input,
 .bmd-char-dropdown select,
 .bmd-char-dropdown .single-select {
   font-weight: 600 !important;
-  color: var(--bmd-accent) !important;
+  color: var(--char-color) !important;
   text-transform: capitalize;
   padding-left: 8px !important;
 }
 .bmd-char-dropdown::before {
   content: "";
   position: absolute;
-  width: 8px; height: 8px;
+  width: 9px; height: 9px;
   border-radius: 50%;
-  background: var(--bmd-accent);
+  background: var(--char-color);
   margin: 14px 0 0 12px;
   z-index: 2;
   pointer-events: none;
+  box-shadow: 0 0 0 2px var(--bmd-surface);
 }
 
 /* Inline Build button */
@@ -644,7 +700,7 @@ CUSTOM_CSS = """
 .bmd-build-btn-inline button:hover { filter: brightness(0.95); }
 .bmd-build-btn-inline button:active { transform: translateY(1px); }
 
-/* Quick-start chips */
+/* Quick-start suggestion cards */
 .bmd-chip-label {
   font-size: 11px;
   text-transform: uppercase;
@@ -653,35 +709,82 @@ CUSTOM_CSS = """
   margin: 18px 0 8px 2px;
   font-weight: 600;
 }
-.bmd-chip-row { gap: 6px !important; flex-wrap: wrap !important; margin-bottom: 12px; }
+.bmd-chip-row {
+  display: grid !important;
+  grid-template-columns: repeat(2, 1fr) !important;
+  gap: 8px !important;
+  margin-bottom: 16px;
+}
+@media (max-width: 540px) {
+  .bmd-chip-row { grid-template-columns: 1fr !important; }
+}
+.bmd-chip { width: 100% !important; }
 .bmd-chip button {
-  font-size: 12.5px !important;
-  padding: 6px 14px !important;
-  border-radius: 999px !important;
+  width: 100% !important;
+  text-align: left !important;
+  font-size: 13px !important;
+  padding: 12px 14px !important;
+  border-radius: 10px !important;
   font-weight: 400 !important;
-  white-space: nowrap;
+  white-space: normal !important;
+  word-break: break-word;
+  line-height: 1.4 !important;
+  min-height: 52px !important;
+  height: auto !important;
   background: var(--bmd-surface) !important;
   border: 1px solid var(--bmd-border) !important;
-  color: var(--bmd-fg-muted) !important;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-  min-height: 30px !important;
+  color: var(--bmd-fg) !important;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.06s ease;
+  display: flex !important;
+  align-items: center !important;
+  position: relative;
+  padding-left: 32px !important;
+}
+.bmd-chip button::before {
+  content: "›";
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--bmd-accent);
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1;
+  transition: transform 0.15s ease;
 }
 .bmd-chip button:hover {
-  background: var(--bmd-surface-2) !important;
-  color: var(--bmd-fg) !important;
-  border-color: var(--bmd-border-strong) !important;
+  background: var(--bmd-accent-soft) !important;
+  border-color: var(--bmd-accent) !important;
 }
+.bmd-chip button:hover::before { transform: translateY(-50%) translateX(2px); }
+.bmd-chip button:active { transform: translateY(1px); }
 
-/* Options accordion */
-.bmd-options-accordion {
-  border: none !important;
-  background: transparent !important;
+/* Options card (always visible) */
+.bmd-options-label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  color: var(--bmd-fg-soft);
+  margin: 8px 0 8px 2px;
+  font-weight: 600;
 }
-.bmd-options-accordion summary,
-.bmd-options-accordion .label-wrap {
+.bmd-options-card {
+  border: 1px solid var(--bmd-border) !important;
+  border-radius: 12px !important;
+  background: var(--bmd-surface-2) !important;
+  padding: 14px 16px !important;
+  margin-bottom: 4px;
+}
+.bmd-options-card label {
   font-size: 13px !important;
-  color: var(--bmd-fg-muted) !important;
+  color: var(--bmd-fg) !important;
 }
+.bmd-options-toggles {
+  gap: 12px !important;
+  flex-wrap: wrap !important;
+  margin-top: 4px;
+}
+.bmd-options-toggles > * { flex: 1 1 200px !important; min-width: 180px !important; }
 
 /* Results wrapper */
 .bmd-results-wrap { margin-top: 32px; }
@@ -770,29 +873,42 @@ CUSTOM_CSS = """
 .bmd-honesty-banner {
   padding: 14px 18px;
   border: 1px solid var(--bmd-border);
-  border-left: 3px solid;
-  border-radius: 4px;
+  border-left: 4px solid;
+  border-radius: 6px;
   margin-bottom: 14px;
   font-size: 14px;
   line-height: 1.55;
-  background: var(--bmd-surface);
   color: var(--bmd-fg);
 }
-.bmd-honesty-amber { border-left-color: var(--bmd-warning); }
-.bmd-honesty-red   { border-left-color: var(--bmd-danger); }
+.bmd-honesty-amber {
+  border-left-color: var(--bmd-warning);
+  background: var(--bmd-warning-soft);
+}
+.bmd-honesty-red {
+  border-left-color: var(--bmd-danger);
+  background: var(--bmd-danger-soft);
+}
 
 /* Quality banner */
 .bmd-banner {
   padding: 18px 22px;
   border: 1px solid var(--bmd-border);
-  border-left: 3px solid;
-  border-radius: 4px;
-  background: var(--bmd-surface);
+  border-left: 4px solid;
+  border-radius: 6px;
   margin-bottom: 16px;
 }
-.bmd-quality-green   { border-left-color: var(--bmd-success); }
-.bmd-quality-neutral { border-left-color: var(--bmd-fg-soft); }
-.bmd-quality-soft    { border-left-color: var(--bmd-warning); }
+.bmd-quality-green {
+  border-left-color: var(--bmd-success);
+  background: var(--bmd-success-soft);
+}
+.bmd-quality-neutral {
+  border-left-color: var(--bmd-info);
+  background: var(--bmd-info-soft);
+}
+.bmd-quality-soft {
+  border-left-color: var(--bmd-warning);
+  background: var(--bmd-warning-soft);
+}
 
 .bmd-banner-headline {
   font-size: 16px;
@@ -815,13 +931,14 @@ CUSTOM_CSS = """
 }
 .bmd-kw-pill {
   display: inline-block;
-  padding: 3px 10px;
-  margin-right: 5px;
-  background: var(--bmd-surface-2);
-  border: 1px solid var(--bmd-border);
-  border-radius: 4px;
+  padding: 4px 11px;
+  margin-right: 6px;
+  background: var(--bmd-surface);
+  border: 1px solid var(--bmd-accent);
+  border-radius: 999px;
   font-size: 12px;
-  color: var(--bmd-fg);
+  font-weight: 500;
+  color: var(--bmd-accent);
   letter-spacing: 0.005em;
 }
 .bmd-kw-count {
@@ -897,16 +1014,30 @@ CUSTOM_CSS = """
   position: relative;
   background: var(--bmd-surface);
   border: 1px solid var(--bmd-border);
+  border-left: 3px solid var(--bmd-fg-soft);
   border-radius: 8px;
-  padding: 14px 16px;
+  padding: 14px 16px 14px 14px;
   display: flex; flex-direction: column;
-  transition: border-color 0.15s ease, transform 0.15s ease;
+  transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
 }
+.bmd-card[data-char="ironclad"]    { border-left-color: var(--color-ironclad); }
+.bmd-card[data-char="silent"]      { border-left-color: var(--color-silent); }
+.bmd-card[data-char="defect"]      { border-left-color: var(--color-defect); }
+.bmd-card[data-char="watcher"]     { border-left-color: var(--color-watcher); }
+.bmd-card[data-char="necrobinder"] { border-left-color: var(--color-necrobinder); }
+.bmd-card[data-char="regent"]      { border-left-color: var(--color-regent); }
+.bmd-card[data-char="colorless"]   { border-left-color: var(--color-colorless); }
+.bmd-card[data-char="curse"]       { border-left-color: var(--color-curse); }
 .bmd-card:hover {
   border-color: var(--bmd-border-strong);
   transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
 }
-.bmd-card-strong { border-color: var(--bmd-accent); }
+.bmd-card-strong {
+  border-top-color: var(--bmd-accent);
+  border-right-color: var(--bmd-accent);
+  border-bottom-color: var(--bmd-accent);
+}
 .bmd-card-locked-bg { background: var(--bmd-surface-2); }
 
 .bmd-card-row1 {
@@ -1188,8 +1319,9 @@ def make_demo() -> gr.Blocks:
                     for p in EXAMPLE_PROMPTS
                 ]
 
-            # Options accordion (collapsed by default; secondary)
-            with gr.Accordion("Options", open=False, elem_classes="bmd-options-accordion"):
+            # Options shown by default (no accordion)
+            gr.HTML('<div class="bmd-options-label">Options</div>')
+            with gr.Group(elem_classes="bmd-options-card"):
                 deck_size = gr.Slider(
                     minimum=10, maximum=30, value=20, step=1, label="Deck size",
                 )
@@ -1199,15 +1331,16 @@ def make_demo() -> gr.Blocks:
                     label="Starters",
                     info="Locks the character's starting cards in place; remaining slots come from the prompt.",
                 )
-                allow_duplicates = gr.Checkbox(
-                    value=True, label="Allow duplicate copies (max 4 per name)",
-                )
-                enforce_curve = gr.Checkbox(
-                    value=True, label="Enforce mana curve (30% low / 50% mid / 20% high)",
-                )
-                enforce_type_balance = gr.Checkbox(
-                    value=True, label="Enforce type balance (50% Attack / 35% Skill / 15% Power)",
-                )
+                with gr.Row(elem_classes="bmd-options-toggles"):
+                    allow_duplicates = gr.Checkbox(
+                        value=True, label="Allow duplicates (max 4 per card)",
+                    )
+                    enforce_curve = gr.Checkbox(
+                        value=True, label="Enforce mana curve",
+                    )
+                    enforce_type_balance = gr.Checkbox(
+                        value=True, label="Enforce type balance",
+                    )
 
         # ---------- RESULTS (full-width below input) ----------
         with gr.Column(elem_classes="bmd-results-wrap"):
