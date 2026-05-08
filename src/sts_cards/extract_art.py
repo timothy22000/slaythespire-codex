@@ -583,6 +583,12 @@ def attach_art_to_cards(
     df["image"] = df.apply(_lookup, axis=1)
     df["image_resolution"] = df["image"].map(lambda b: resolution if b is not None else None)
 
+    # Move image / image_resolution to the front (right after `id`) so the
+    # HF dataset viewer surfaces the portrait thumbnail early in the row.
+    front = [c for c in ("id", "image", "image_resolution") if c in df.columns]
+    rest = [c for c in df.columns if c not in front]
+    df = df[front + rest]
+
     n_matched = int(df["image"].notna().sum())
     df.to_parquet(cards_parquet, index=False)
 
