@@ -533,33 +533,37 @@ CUSTOM_CSS = """
   margin-bottom: 8px;
 }
 
-/* ---------- Input card (chat-first) ---------- */
-.bmd-input-wrap { margin-bottom: 4px; }
+/* ---------- Input card (Apple-style chat box) ---------- */
+.bmd-input-wrap { margin-bottom: 14px; }
 
 .bmd-input-card {
   border: 1px solid var(--bmd-border) !important;
-  border-radius: 16px !important;
+  border-radius: 20px !important;
   background: var(--bmd-surface) !important;
-  box-shadow: none;
-  padding: 14px 16px 10px 16px !important;
-  transition: border-color 0.18s ease, box-shadow 0.18s ease;
-  margin-bottom: 12px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  padding: 18px 20px 14px 20px !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  margin-bottom: 16px;
+}
+.bmd-input-card:hover {
+  border-color: var(--bmd-border-strong) !important;
 }
 .bmd-input-card:focus-within {
-  border-color: var(--bmd-accent) !important;
-  box-shadow: 0 0 0 4px var(--bmd-accent-ring);
+  border-color: var(--bmd-border-strong) !important;
+  box-shadow: 0 8px 24px -8px rgba(0,0,0,0.10), 0 2px 6px -2px rgba(0,0,0,0.04);
 }
 
 .bmd-prompt-textarea textarea {
   border: none !important;
   background: transparent !important;
   resize: none !important;
-  font-size: 16px !important;
+  font-size: 17px !important;
   line-height: 1.5 !important;
-  padding: 4px 2px !important;
+  padding: 6px 2px !important;
   box-shadow: none !important;
   color: var(--bmd-fg) !important;
   font-feature-settings: normal;
+  letter-spacing: -0.005em;
 }
 .bmd-prompt-textarea textarea::placeholder {
   color: var(--bmd-fg-soft);
@@ -572,11 +576,49 @@ CUSTOM_CSS = """
 .bmd-input-controls {
   gap: 10px !important;
   align-items: center !important;
-  margin-top: 10px !important;
-  padding-top: 10px;
-  border-top: 1px solid var(--bmd-border);
+  margin-top: 12px !important;
+  padding-top: 0;
+  border-top: none;
 }
 .bmd-spacer { flex: 1; }
+
+/* Hero Build button — large standalone CTA below input */
+.bmd-hero-cta { margin: 0 0 18px 0; }
+.bmd-hero-cta button {
+  width: 100% !important;
+  background: var(--bmd-accent) !important;
+  color: white !important;
+  border: none !important;
+  border-radius: 16px !important;
+  padding: 18px 24px !important;
+  font-size: 16px !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.005em;
+  min-height: 56px !important;
+  box-shadow: 0 1px 2px rgba(217,119,6,0.20),
+              0 6px 16px -4px rgba(217,119,6,0.30);
+  transition: transform 0.08s ease, box-shadow 0.18s ease, filter 0.18s ease;
+  cursor: pointer;
+}
+.bmd-hero-cta button:hover {
+  filter: brightness(1.04);
+  box-shadow: 0 1px 2px rgba(217,119,6,0.25),
+              0 10px 24px -4px rgba(217,119,6,0.40);
+  transform: translateY(-1px);
+}
+.bmd-hero-cta button:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(217,119,6,0.20),
+              0 4px 10px -4px rgba(217,119,6,0.30);
+}
+.dark .bmd-hero-cta button {
+  box-shadow: 0 1px 2px rgba(245,158,11,0.30),
+              0 6px 16px -4px rgba(245,158,11,0.20);
+}
+.dark .bmd-hero-cta button:hover {
+  box-shadow: 0 1px 2px rgba(245,158,11,0.35),
+              0 10px 24px -4px rgba(245,158,11,0.30);
+}
 
 /* Game pills, segmented-control style */
 .bmd-game-pills {
@@ -1273,7 +1315,7 @@ def make_demo() -> gr.Blocks:
             '</div>'
         )
 
-        # ---------- INPUT CARD (chat-style) ----------
+        # ---------- INPUT CARD (Apple-style chat box) ----------
         with gr.Column(elem_classes="bmd-input-wrap"):
             with gr.Group(elem_classes="bmd-input-card"):
                 prompt = gr.Textbox(
@@ -1300,16 +1342,16 @@ def make_demo() -> gr.Blocks:
                         container=False,
                         elem_classes="bmd-char-dropdown",
                         scale=0,
-                        min_width=140,
+                        min_width=160,
                     )
                     gr.HTML('<div class="bmd-spacer"></div>')
-                    build_btn = gr.Button(
-                        "Build deck  ↑",
-                        variant="primary",
-                        size="sm",
-                        scale=0,
-                        elem_classes="bmd-build-btn-inline",
-                    )
+
+            # Hero Build CTA — pulled out of the input card so it dominates
+            with gr.Column(elem_classes="bmd-hero-cta"):
+                build_btn = gr.Button(
+                    "Build deck  →",
+                    variant="primary",
+                )
 
             # Quick-start chip row, like ChatGPT's "try one of these"
             gr.HTML('<div class="bmd-chip-label">Try a starting prompt</div>')
