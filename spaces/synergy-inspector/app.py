@@ -379,6 +379,9 @@ def randomize(game_label: str):
 
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
 IMAGE_MIME = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "webp": "image/webp"}
+TEXT_EXTS = {".txt", ".md"}
+JSON_EXTS = {".json"}
+CSV_EXTS = {".csv"}
 
 VISION_EXTRACTION_PROMPT = """You are looking at a screenshot of a Slay the Spire card. Extract its details and return ONLY a JSON object with the fields below. Use null for any field you cannot determine confidently. Do not include markdown fences or any prose, just the JSON.
 
@@ -457,46 +460,43 @@ def _form_updates_from_card_dict(data: dict, game_label: str):
     )
 
 
+VISION_MODEL = "Qwen/Qwen2.5-VL-72B-Instruct"
+
+
 def _extract_card_from_image(image_path: Path) -> dict:
-    """Call Claude Haiku Vision to extract card fields from a screenshot.
+    """Call a vision model via HF Inference Providers to extract card fields.
     Returns a card-shaped dict (same keys as the JSON-upload format).
-    Raises with a clear message if ANTHROPIC_API_KEY isn't set."""
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
+    Raises with a clear message if HF_TOKEN isn't set."""
+    hf_token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_HUB_TOKEN")
+    if not hf_token:
         raise RuntimeError(
-            "ANTHROPIC_API_KEY isn't set in this Space's secrets. "
-            "The Space owner needs to add it under Settings → Variables and secrets "
-            "to enable screenshot extraction."
+            "HF_TOKEN isn't set in this Space's secrets. The Space owner needs "
+            "to add it under Settings → Variables and secrets to enable "
+            "screenshot extraction. The token must have inference provider access."
         )
 
-    import anthropic
-    client = anthropic.Anthropic(api_key=api_key)
+    from huggingface_hub import InferenceClient
+    client = InferenceClient(provider="auto", api_key=hf_token)
 
     suffix = image_path.suffix.lower().lstrip(".")
     mime = IMAGE_MIME.get(suffix, "image/png")
     image_bytes = image_path.read_bytes()
     img_b64 = base64.b64encode(image_bytes).decode("ascii")
+    data_url = f"data:{mime};base64,{img_b64}"
 
-    msg = client.messages.create(
-        model="claude-haiku-4-5",
+    resp = client.chat.completions.create(
+        model=VISION_MODEL,
         max_tokens=600,
         messages=[{
             "role": "user",
             "content": [
-                {
-                    "type": "image",
-                    "source": {
-                        "type": "base64",
-                        "media_type": mime,
-                        "data": img_b64,
-                    },
-                },
+                {"type": "image_url", "image_url": {"url": data_url}},
                 {"type": "text", "text": VISION_EXTRACTION_PROMPT},
             ],
         }],
     )
 
-    text = msg.content[0].text.strip()
+    text = (resp.choices[0].message.content or "").strip()
     # Strip markdown code fences defensively, in case the model wrapped its output.
     if text.startswith("```"):
         first_nl = text.find("\n")
@@ -512,13 +512,37 @@ def _extract_card_from_image(image_path: Path) -> dict:
         )
 
 
+def _load_csv_first_row(path: Path) -> dict | None:
+    """Read a CSV and return the first row as a dict.
+
+    Uses pandas' python engine with `sep=None` to sniff `,`/`;`/`\\t`.
+    Warns if the file has multiple rows.
+    """
+    try:
+        df = pd.read_csv(path, sep=None, engine="python")
+    except Exception:
+        return None
+
+    if df.empty:
+        return None
+
+    if len(df) > 1:
+        gr.Info(f"CSV has {len(df)} rows; using only the first.")
+
+    row = df.iloc[0].to_dict()
+    # Normalise keys to lowercase for a forgiving match against the schema.
+    return {str(k).strip().lower(): v for k, v in row.items()}
+
+
 def load_card_file(file_obj, game_label: str):
     """Populate form fields from an uploaded file.
 
-    .json:           parsed as a dict; recognised keys map to form fields.
-    .txt/.md:        file contents become the `description` field.
-    .png/.jpg/.webp: Claude Haiku Vision extracts card fields, populates form.
-    Anything else:   treated as raw text (.txt fallback).
+    .json:               parsed as a dict; recognised keys map to form fields.
+    .csv:                first row's columns map to form fields (header row
+                         expected, lowercase keys; same field names as JSON).
+    .png/.jpg/.webp:     Vision model (Qwen2.5-VL-72B via HF) extracts card
+                         fields and populates the form.
+    .txt/.md/anything:   file content goes into the description field.
 
     Returns ten gr.update() payloads matching FORM_FIELD_KEYS. Surfaces
     failures via gr.Warning rather than throwing.
@@ -529,7 +553,7 @@ def load_card_file(file_obj, game_label: str):
     path = Path(file_obj.name if hasattr(file_obj, "name") else str(file_obj))
     suffix = path.suffix.lower()
 
-    # Image path: extract via vision API.
+    # Image path: extract via vision model.
     if suffix in IMAGE_EXTS:
         try:
             data = _extract_card_from_image(path)
@@ -546,22 +570,33 @@ def load_card_file(file_obj, game_label: str):
             gr.Info("Extracted card details from screenshot.")
         return _form_updates_from_card_dict(data, game_label)
 
-    # Text-based path
+    # CSV path
+    if suffix in CSV_EXTS:
+        data = _load_csv_first_row(path)
+        if data is None:
+            gr.Warning("Couldn't parse CSV. Expected a header row with column names like `name`, `type`, `cost`, `description`.")
+            return tuple(gr.update() for _ in FORM_FIELD_KEYS)
+        return _form_updates_from_card_dict(data, game_label)
+
+    # JSON / text path
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
     except OSError:
+        gr.Warning("Couldn't read uploaded file.")
         return tuple(gr.update() for _ in FORM_FIELD_KEYS)
 
-    if suffix == ".json":
+    if suffix in JSON_EXTS:
         try:
             data = json.loads(text)
         except json.JSONDecodeError:
             data = None
         if isinstance(data, dict):
             return _form_updates_from_card_dict(data, game_label)
+        gr.Warning("JSON file did not contain a card-shaped object; dropping content into Description.")
 
-    # .txt / .md / unrecognized: dump the file content into the description
-    # field. Trim to the same 1500-char cap the analyze handler enforces.
+    # .txt / .md / unrecognized / failed-JSON fallback: dump content into
+    # the description field, trimmed to the same 1500-char cap the analyze
+    # handler enforces.
     desc_text = text.strip()[:1500]
     return (
         gr.update(),  # name
@@ -757,9 +792,11 @@ def make_demo() -> gr.Blocks:
                 with gr.Row():
                     randomize_btn = gr.Button("🎲 Randomize", size="sm", scale=1)
                     upload_file = gr.File(
-                        label="Upload card (JSON, text, or 📸 screenshot)",
-                        file_types=[".json", ".txt", ".md",
-                                    ".png", ".jpg", ".jpeg", ".webp"],
+                        label="Upload card (JSON, CSV, text, or 📸 screenshot)",
+                        file_types=[
+                            ".json", ".csv", ".txt", ".md",
+                            ".png", ".jpg", ".jpeg", ".webp",
+                        ],
                         file_count="single",
                         type="filepath",
                         height=84,
@@ -767,13 +804,15 @@ def make_demo() -> gr.Blocks:
                     )
                 with gr.Accordion("Upload formats", open=False):
                     gr.Markdown(
+                        "Drop one file into the upload widget; the format is "
+                        "detected from the extension.\n\n"
                         "**📸 Screenshot** (`.png` / `.jpg` / `.jpeg` / `.webp`): "
-                        "drop a card screenshot and a vision model (Claude Haiku) "
-                        "reads off the card's name, cost, type, description, and "
-                        "stats, then fills in the form. Takes ~3-5 seconds. "
-                        "Requires `ANTHROPIC_API_KEY` to be set in the Space's "
-                        "secrets — without it, this path returns a clear error.\n\n"
-                        "**JSON file** with any of these keys (all optional):\n"
+                        "vision model (Qwen2.5-VL-72B via HF Inference Providers) "
+                        "reads the card's name, cost, type, description, and "
+                        "stats, then fills the form. Takes ~3-5 seconds. "
+                        "Requires `HF_TOKEN` to be set in the Space's secrets "
+                        "— without it, this path returns a clear error.\n\n"
+                        "**JSON** (`.json`) — fields all optional:\n"
                         "```json\n"
                         "{\n"
                         '  "name": "Phantom Strike",\n'
@@ -787,11 +826,14 @@ def make_demo() -> gr.Blocks:
                         '  "damage": 8,\n'
                         '  "block": null\n'
                         "}\n"
-                        "```\n"
-                        "Missing fields keep their current form values. Cost values "
-                        "of `\"-1\"`/`-1` map to *X*; `\"-2\"`/`-2` to *Unplayable*; "
-                        "`\"\"` to *Costless*.\n\n"
-                        "**`.txt` or `.md` file:** the entire content goes into the "
+                        "```\n\n"
+                        "**CSV** (`.csv`) — header row required, same field "
+                        "names as the JSON keys above. Only the first row is "
+                        "used; multi-row files surface a one-line notice.\n\n"
+                        "Cost values of `\"-1\"`/`-1` map to *X*; `\"-2\"`/`-2` "
+                        "to *Unplayable*; `\"\"` to *Costless*. Missing fields "
+                        "keep their current form values.\n\n"
+                        "**`.txt` or `.md`:** the entire content goes into the "
                         "Description field (trimmed to 1500 chars)."
                     )
 
