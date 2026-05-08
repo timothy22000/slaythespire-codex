@@ -14,7 +14,9 @@ Pre-warmed in a background thread at startup.
 
 from __future__ import annotations
 
+import base64
 import json
+import os
 import random
 import threading
 from pathlib import Path
@@ -375,27 +377,180 @@ def randomize(game_label: str):
     )
 
 
+IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
+IMAGE_MIME = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "webp": "image/webp"}
+
+VISION_EXTRACTION_PROMPT = """You are looking at a screenshot of a Slay the Spire card. Extract its details and return ONLY a JSON object with the fields below. Use null for any field you cannot determine confidently. Do not include markdown fences or any prose, just the JSON.
+
+{
+  "name": "<exact card name as shown>",
+  "type": "Attack" | "Skill" | "Power" | "Status" | "Curse" | "Quest" | null,
+  "rarity": "Basic" | "Common" | "Uncommon" | "Rare" | "Special" | null,
+  "color": "ironclad" | "silent" | "defect" | "watcher" | "necrobinder" | "regent" | "colorless" | "curse" | null,
+  "cost": "0" | "1" | "2" | "3" | "X" | "Unplayable" | "Costless" | null,
+  "description": "<exact card description text>",
+  "description_upgraded": null,
+  "keywords": ["..."] or null,
+  "damage": <integer or null — primary damage value if 'Deal N damage' appears>,
+  "block": <integer or null — primary block value if 'Gain N block' appears>
+}
+
+Color guide: card border color signals the character class.
+  Red = ironclad. Green = silent. Blue = defect. Purple = watcher.
+  Black/bone = necrobinder. Gold = regent. Gray = colorless. Black-with-skull = curse.
+"""
+
+
+def _form_updates_from_card_dict(data: dict, game_label: str):
+    """Build ten gr.update() payloads from a card-shaped dict.
+
+    Used by both the .json upload path and the screenshot extraction path.
+    Order matches FORM_FIELD_KEYS:
+      name, type_, rarity, color, cost,
+      description, description_upgraded, keywords, damage, block.
+    """
+    game = GAMES[game_label]
+    df, _ = load_game(game)
+
+    def _opt_str(key):
+        v = data.get(key)
+        return gr.update(value=str(v)) if v is not None else gr.update()
+
+    def _enum_update(field):
+        v = data.get(field)
+        if v is None:
+            return gr.update()
+        allowed = set(df[field].dropna().unique())
+        # If the model returned a value that isn't in the per-game enum
+        # (e.g. STS1 user uploaded an STS2-only color), drop it silently
+        # rather than corrupt the form.
+        return gr.update(value=v) if v in allowed else gr.update()
+
+    def _num_update(key):
+        v = data.get(key)
+        if v is None or (isinstance(v, str) and not v.strip()):
+            return gr.update()
+        try:
+            return gr.update(value=float(v))
+        except (TypeError, ValueError):
+            return gr.update()
+
+    kws = data.get("keywords")
+    if isinstance(kws, list):
+        kw_update = gr.update(value=", ".join(str(k) for k in kws))
+    elif kws is not None:
+        kw_update = gr.update(value=_parse_keywords(kws))
+    else:
+        kw_update = gr.update()
+
+    return (
+        _opt_str("name"),
+        _enum_update("type"),
+        _enum_update("rarity"),
+        _enum_update("color"),
+        gr.update(value=_cost_raw_to_display(data.get("cost"))) if data.get("cost") is not None else gr.update(),
+        _opt_str("description"),
+        _opt_str("description_upgraded"),
+        kw_update,
+        _num_update("damage"),
+        _num_update("block"),
+    )
+
+
+def _extract_card_from_image(image_path: Path) -> dict:
+    """Call Claude Haiku Vision to extract card fields from a screenshot.
+    Returns a card-shaped dict (same keys as the JSON-upload format).
+    Raises with a clear message if ANTHROPIC_API_KEY isn't set."""
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise RuntimeError(
+            "ANTHROPIC_API_KEY isn't set in this Space's secrets. "
+            "The Space owner needs to add it under Settings → Variables and secrets "
+            "to enable screenshot extraction."
+        )
+
+    import anthropic
+    client = anthropic.Anthropic(api_key=api_key)
+
+    suffix = image_path.suffix.lower().lstrip(".")
+    mime = IMAGE_MIME.get(suffix, "image/png")
+    image_bytes = image_path.read_bytes()
+    img_b64 = base64.b64encode(image_bytes).decode("ascii")
+
+    msg = client.messages.create(
+        model="claude-haiku-4-5",
+        max_tokens=600,
+        messages=[{
+            "role": "user",
+            "content": [
+                {
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": mime,
+                        "data": img_b64,
+                    },
+                },
+                {"type": "text", "text": VISION_EXTRACTION_PROMPT},
+            ],
+        }],
+    )
+
+    text = msg.content[0].text.strip()
+    # Strip markdown code fences defensively, in case the model wrapped its output.
+    if text.startswith("```"):
+        first_nl = text.find("\n")
+        if first_nl != -1:
+            text = text[first_nl + 1:]
+        text = text.rsplit("```", 1)[0].strip()
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as e:
+        raise RuntimeError(
+            f"Vision model returned invalid JSON: {e}. Raw output: {text[:200]!r}"
+        )
+
+
 def load_card_file(file_obj, game_label: str):
     """Populate form fields from an uploaded file.
 
-    .json: parsed as a dict; recognised keys map to form fields. Cost can be
-           int or string; gets converted to the display label.
-    .txt/.md: file contents become the `description` field. Other fields
-              left unchanged.
-    Anything else: same fallback as .txt (treat as raw description).
+    .json:           parsed as a dict; recognised keys map to form fields.
+    .txt/.md:        file contents become the `description` field.
+    .png/.jpg/.webp: Claude Haiku Vision extracts card fields, populates form.
+    Anything else:   treated as raw text (.txt fallback).
 
-    Returns ten gr.update() payloads matching FORM_FIELD_KEYS.
+    Returns ten gr.update() payloads matching FORM_FIELD_KEYS. Surfaces
+    failures via gr.Warning rather than throwing.
     """
     if file_obj is None:
         return tuple(gr.update() for _ in FORM_FIELD_KEYS)
 
     path = Path(file_obj.name if hasattr(file_obj, "name") else str(file_obj))
+    suffix = path.suffix.lower()
+
+    # Image path: extract via vision API.
+    if suffix in IMAGE_EXTS:
+        try:
+            data = _extract_card_from_image(path)
+        except Exception as e:
+            gr.Warning(f"Screenshot extraction failed: {e}")
+            return tuple(gr.update() for _ in FORM_FIELD_KEYS)
+        if not isinstance(data, dict):
+            gr.Warning("Vision model didn't return a card-shaped JSON object.")
+            return tuple(gr.update() for _ in FORM_FIELD_KEYS)
+        recognized_name = data.get("name")
+        if recognized_name:
+            gr.Info(f"Extracted card details from screenshot (recognized as {recognized_name!r}).")
+        else:
+            gr.Info("Extracted card details from screenshot.")
+        return _form_updates_from_card_dict(data, game_label)
+
+    # Text-based path
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return tuple(gr.update() for _ in FORM_FIELD_KEYS)
-
-    suffix = path.suffix.lower()
 
     if suffix == ".json":
         try:
@@ -403,37 +558,10 @@ def load_card_file(file_obj, game_label: str):
         except json.JSONDecodeError:
             data = None
         if isinstance(data, dict):
-            game = GAMES[game_label]
-            df, _ = load_game(game)
-
-            def _coerce_enum(field, value, default):
-                if value is None:
-                    return gr.update()
-                allowed = set(df[field].dropna().unique())
-                return value if value in allowed else default
-
-            kws = data.get("keywords")
-            if isinstance(kws, list):
-                kw_text = ", ".join(str(k) for k in kws)
-            else:
-                kw_text = _parse_keywords(kws)
-
-            return (
-                gr.update(value=str(data.get("name", "")) if data.get("name") is not None else gr.update()),
-                gr.update(value=_coerce_enum("type", data.get("type"), "Attack")) if data.get("type") is not None else gr.update(),
-                gr.update(value=_coerce_enum("rarity", data.get("rarity"), "Common")) if data.get("rarity") is not None else gr.update(),
-                gr.update(value=_coerce_enum("color", data.get("color"), "ironclad")) if data.get("color") is not None else gr.update(),
-                gr.update(value=_cost_raw_to_display(data.get("cost"))) if data.get("cost") is not None else gr.update(),
-                gr.update(value=str(data.get("description", ""))) if data.get("description") is not None else gr.update(),
-                gr.update(value=str(data.get("description_upgraded", ""))) if data.get("description_upgraded") is not None else gr.update(),
-                gr.update(value=kw_text) if data.get("keywords") is not None else gr.update(),
-                gr.update(value=float(data["damage"])) if data.get("damage") is not None else gr.update(),
-                gr.update(value=float(data["block"])) if data.get("block") is not None else gr.update(),
-            )
+            return _form_updates_from_card_dict(data, game_label)
 
     # .txt / .md / unrecognized: dump the file content into the description
-    # field. Trim to the same 1500-char hard cap the analyze handler enforces
-    # so the user sees what will actually be used.
+    # field. Trim to the same 1500-char cap the analyze handler enforces.
     desc_text = text.strip()[:1500]
     return (
         gr.update(),  # name
@@ -629,15 +757,22 @@ def make_demo() -> gr.Blocks:
                 with gr.Row():
                     randomize_btn = gr.Button("🎲 Randomize", size="sm", scale=1)
                     upload_file = gr.File(
-                        label="Upload card",
-                        file_types=[".json", ".txt", ".md"],
+                        label="Upload card (JSON, text, or 📸 screenshot)",
+                        file_types=[".json", ".txt", ".md",
+                                    ".png", ".jpg", ".jpeg", ".webp"],
                         file_count="single",
                         type="filepath",
                         height=84,
                         scale=2,
                     )
-                with gr.Accordion("Upload format", open=False):
+                with gr.Accordion("Upload formats", open=False):
                     gr.Markdown(
+                        "**📸 Screenshot** (`.png` / `.jpg` / `.jpeg` / `.webp`): "
+                        "drop a card screenshot and a vision model (Claude Haiku) "
+                        "reads off the card's name, cost, type, description, and "
+                        "stats, then fills in the form. Takes ~3-5 seconds. "
+                        "Requires `ANTHROPIC_API_KEY` to be set in the Space's "
+                        "secrets — without it, this path returns a clear error.\n\n"
                         "**JSON file** with any of these keys (all optional):\n"
                         "```json\n"
                         "{\n"

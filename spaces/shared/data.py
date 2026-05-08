@@ -1,7 +1,11 @@
 """Load the four published HuggingFace datasets and merge cards onto embeddings.
 
-The merge happens on `id` per the documented contract on the dataset cards.
-Cached via lru_cache so each game is loaded once per process.
+Uses huggingface_hub.hf_hub_download to fetch parquets directly, bypassing
+the `datasets` library's hashing path (which references
+`transformers.PreTrainedTokenizerBase` via lazy lookup; that lookup fails
+on HF Spaces when transformers is in sys.modules even at known-good versions).
+
+Files cache to ~/.cache/huggingface/hub; subsequent calls hit disk.
 """
 
 from __future__ import annotations
@@ -10,7 +14,7 @@ from functools import lru_cache
 
 import numpy as np
 import pandas as pd
-from datasets import load_dataset
+from huggingface_hub import hf_hub_download
 
 REPOS = {
     "sts1": (
@@ -35,8 +39,15 @@ def load_game(game: str) -> tuple[pd.DataFrame, np.ndarray]:
         raise ValueError(f"game must be one of {list(REPOS)}, got {game!r}")
 
     cards_repo, emb_repo = REPOS[game]
-    cards = load_dataset(cards_repo, split="train").to_pandas()
-    embs = load_dataset(emb_repo, split="train").to_pandas()
+    cards_path = hf_hub_download(
+        repo_id=cards_repo, filename="cards.parquet", repo_type="dataset",
+    )
+    embs_path = hf_hub_download(
+        repo_id=emb_repo, filename="embeddings.parquet", repo_type="dataset",
+    )
+
+    cards = pd.read_parquet(cards_path)
+    embs = pd.read_parquet(embs_path)
 
     df = cards.merge(
         embs[["id", "embedding", "umap_x", "umap_y"]],
