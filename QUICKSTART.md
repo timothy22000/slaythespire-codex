@@ -36,9 +36,9 @@ pip install -e ".[embed]"
 ## 3. Verify the install
 
 ```bash
-pytest                        # 89 tests should pass in ~1s
-sts-cards --help              # CLI help should render with 8 commands
-sts-cards version             # → 0.3.0
+pytest                        # ~101 tests should pass in ~2s
+sts-cards --help              # CLI help should render with 10 commands
+sts-cards version             # → 0.4.0
 ```
 
 ## 4. Run the pipeline (no HF account needed)
@@ -61,6 +61,28 @@ sts-cards visualize sts2
 ```
 
 > The `--sts-game-version` flag is recorded in `provenance.json`. Important for STS2 because it changes weekly with patches.
+
+## 5b. Adding card art (optional)
+
+The published cards Parquets can also carry the in-game card portraits
+as a column. Extraction reads from a local Steam install — game files are
+never re-uploaded by the pipeline. Run from the project root:
+
+```bash
+# STS1: needs only Python stdlib (zipfile reads desktop-1.0.jar)
+sts-cards diagnose-art sts1            # report join rate first
+sts-cards extract-art  sts1            # adds `image` column to sts1_cards.parquet
+
+# STS2: needs GDRE Tools — https://github.com/bruvzg/gdsdecomp
+brew install gdre_tools                # or use the release binary directly
+sts-cards diagnose-art sts2 --gdre-tools-path /path/to/gdre_tools
+sts-cards extract-art  sts2 --gdre-tools-path /path/to/gdre_tools
+```
+
+`extract-art` also updates `provenance.json` with an `art` block recording
+the source-file SHA-256 and extraction timestamp. Run it AFTER `fetch` and
+BEFORE `embed`. Embedding does not change — image data isn't part of
+`card_text`.
 
 ## 6. Cross-game similarity
 

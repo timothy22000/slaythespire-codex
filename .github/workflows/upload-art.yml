@@ -1,0 +1,98 @@
+name: Upload cards (with art)
+
+# Manual cards-only re-upload after a local `sts-cards extract-art {game}`
+# run has updated cards.parquet with the `image` column. CI does NOT run
+# extract-art (no game files on the runner) — it just publishes whatever
+# Parquet you've staged in `output/`.
+
+on:
+  workflow_dispatch:
+    inputs:
+      game:
+        description: "Which game's cards repo to refresh"
+        required: true
+        type: choice
+        options:
+          - sts1
+          - sts2
+        default: sts1
+      artifact_name:
+        description: "Name of an artifact (uploaded by another workflow run) "
+                     "containing output/{game}_cards.parquet. Leave blank to "
+                     "use whatever is already in output/."
+        required: false
+        type: string
+        default: ""
+
+env:
+  STS1_CARDS_REPO: t22000t/slay-the-spire-1-cards
+  STS2_CARDS_REPO: t22000t/slay-the-spire-2-cards
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install with upload extras
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[upload]"
+
+      - name: Resolve repo
+        id: resolve
+        run: |
+          GAME="${{ github.event.inputs.game }}"
+          if [ "$GAME" = "sts1" ]; then
+            CARDS_REPO="${{ env.STS1_CARDS_REPO }}"
+          else
+            CARDS_REPO="${{ env.STS2_CARDS_REPO }}"
+          fi
+          echo "game=$GAME"            >> "$GITHUB_OUTPUT"
+          echo "cards_repo=$CARDS_REPO" >> "$GITHUB_OUTPUT"
+
+      - name: Pull staged Parquet artifact (optional)
+        if: ${{ github.event.inputs.artifact_name != '' }}
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ github.event.inputs.artifact_name }}
+          path: output/
+
+      - name: Verify cards.parquet has an image column
+        run: |
+          python - <<'PY'
+          import pandas as pd, sys
+          p = "output/${{ steps.resolve.outputs.game }}_cards.parquet"
+          df = pd.read_parquet(p)
+          if "image" not in df.columns:
+              sys.exit(
+                  f"::error::{p} has no `image` column. "
+                  "Run `sts-cards extract-art ${{ steps.resolve.outputs.game }}` "
+                  "locally first, then re-upload the Parquet as a workflow artifact."
+              )
+          n_with = int(df["image"].notna().sum())
+          print(f"{p}: {n_with}/{len(df)} cards have art")
+          PY
+
+      - name: Generate Croissant for cards
+        run: |
+          sts-cards croissant ${{ steps.resolve.outputs.game }} \
+            --kind cards --repo ${{ steps.resolve.outputs.cards_repo }}
+
+      - name: Upload cards repo
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          if [ -z "$HF_TOKEN" ]; then
+            echo "::warning::HF_TOKEN secret not set — skipping upload"
+            exit 0
+          fi
+          sts-cards upload ${{ steps.resolve.outputs.game }} \
+            --kind cards --repo ${{ steps.resolve.outputs.cards_repo }}

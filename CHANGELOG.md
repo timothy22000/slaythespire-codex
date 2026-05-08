@@ -7,6 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-05-08
+
+### Added — card art as a column on the cards Parquet
+
+Each cards Parquet now carries an `image` column with the in-game card portrait
+as raw PNG bytes. HuggingFace's `datasets.Image()` feature decodes those bytes
+back to PIL on `load_dataset()`, and the dataset viewer renders thumbnails inline.
+
+- `extract_art.py` module — STS1 portraits via `zipfile` over `desktop-1.0.jar`,
+  STS2 portraits via a GDRE Tools subprocess over `sts2.pck` (cached on disk
+  by `sha256(pck)`); both keep PNG bytes in memory and never write per-card
+  files to disk.
+- `sts-cards diagnose-art {game}` — lists candidate portrait paths and reports
+  the join rate against `cards.parquet["id"]`. Run before `extract-art`.
+- `sts-cards extract-art {game}` — extracts and attaches the `image` and
+  `image_resolution` columns in place. Resolution flag (`--resolution
+  high|low`) is honoured for STS1; STS2 ships one resolution.
+- `ArtProvenance` dataclass on `DatasetProvenance.art` — records extraction
+  source, source-file SHA-256, timestamp, match counts, resolution, and
+  GDRE Tools version (STS2 only).
+- `.github/workflows/upload-art.yml` — manual `workflow_dispatch` to
+  re-upload the cards repo after a local extraction. CI does NOT run
+  extraction (no game files on the runner).
+- ~12 new tests in `tests/test_extract_art.py` and updates to
+  `test_provenance.py` and `test_croissant.py` for the new column types.
+
+### Changed
+
+- `embed.py` drops `image` and `image_resolution` from
+  `cards_with_embeddings.parquet` so the in-process file stays small;
+  the slim `embeddings.parquet` already excluded them.
+- `croissant.py` maps the `image` column to `sc:ImageObject` instead of
+  defaulting to `sc:Text`.
+- Dataset cards (`sts1_cards_README.md`, `sts2_cards_README.md`) declare
+  the `image` feature in YAML frontmatter so the HF viewer renders
+  thumbnails, and document the size jump (~200 KB → ~50–80 MB).
+- `refresh.yml` logs whether the staged `cards.parquet` carries an
+  `image` column instead of silently publishing without portraits.
+
 ## [0.3.0] - 2026-05-07
 
 ### Changed — split into 4 HF datasets

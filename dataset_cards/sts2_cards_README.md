@@ -19,6 +19,11 @@ tags:
 configs:
 - config_name: default
   data_files: cards.parquet
+features:
+- name: image
+  dtype: image
+- name: image_resolution
+  dtype: string
 ---
 
 # Slay the Spire 2: Cards
@@ -83,12 +88,30 @@ Card-text classification, design analysis, modding, and deckbuilder simulators d
 | `forge_value` | int \| null | Forge value if the card has a "Forge N" clause |
 | `souls_added` | int \| null | Number of Souls added (Necrobinder mechanic) |
 
+### Card art columns
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `image` | image (PNG bytes) | Card portrait art. Decoded to a PIL Image automatically by `datasets.load_dataset()`. Cards without art get `null`. |
+| `image_resolution` | string | Resolution variant of the source asset. |
+
+## Card art
+
+Each row carries the in-game card portrait as a PIL-decodable image. The HuggingFace dataset viewer renders thumbnails inline.
+
+- **Source.** Card portraits are extracted from a local Steam install of Slay the Spire 2 (`sts2.pck`, expanded with [GDRE Tools](https://github.com/bruvzg/gdsdecomp)). Game files are not redistributed by this pipeline; extraction happens on the maintainer's machine.
+- **Drift.** STS2 art changes alongside cards in Early Access. The `provenance.json` records `art.source_file_sha256` and `art.extracted_at` so consumers can detect rebuilt portraits.
+- **Why this is large.** The cards Parquet grows from ~250 KB to ~80 MB once portraits are inlined. If you don't need the bytes, use `streaming=True`.
+- **Attribution.** Slay the Spire 2 art is © [Mega Crit](https://www.megacrit.com/). Mega Crit has publicly blessed redistribution of fan-extracted card art for tooling and mods. This dataset includes a takedown clause regardless: if Mega Crit objects, the `image` column will be removed.
+
 ## Loading
 
 ```python
 from datasets import load_dataset
 
 cards = load_dataset("t22000t/slay-the-spire-2-cards", split="train")
+print(cards[0]["name"], "→", cards[0]["image"])
+# <name> → <PIL.PngImagePlugin.PngImageFile image mode=RGBA size=...>
 ```
 
 ## Filtering on STS2 mechanics

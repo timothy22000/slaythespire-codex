@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sts-cards"
-version = "0.1.0"
+version = "0.4.0"
 description = "Slay the Spire 1 + 2 card dataset and embedding pipeline"
 readme = "README.md"
 license = { file = "LICENSE" }
@@ -50,6 +50,7 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.5",
     "mypy>=1.10",
+    "Pillow>=10.0",
 ]
 all = [
     "sts-cards[embed,viz,upload,dev]",

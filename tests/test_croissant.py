@@ -201,3 +201,24 @@ def test_write_croissant_filename_includes_kind(sample_cards_parquet):
     # Default output path should have `cards` in the name so cards and
     # embeddings descriptors don't collide
     assert "cards" in out_cards.name
+
+
+def test_croissant_maps_image_column_to_imageobject(tmp_path):
+    """When the cards Parquet has an `image` bytes column, Croissant must
+    label it as `sc:ImageObject` so HF and Google Dataset Search recognize
+    it as an image — not a generic text/binary blob."""
+    df = pd.DataFrame([
+        {"id": "Strike_R", "name": "Strike",
+         "image": b"\x89PNG\r\n\x1a\n--fake-png-bytes--",
+         "image_resolution": "high"},
+    ])
+    out = tmp_path / "sts1_cards.parquet"
+    df.to_parquet(out, index=False)
+
+    cr = build_croissant(out, game="sts1", kind="cards",
+                        repo_id="user/slay-the-spire-1-cards")
+    fields = {f["name"]: f for f in cr["recordSet"][0]["field"]}
+    assert fields["image"]["dataType"] == "sc:ImageObject"
+    assert fields["image_resolution"]["dataType"] == "sc:Text"
+    # Image field still has a description
+    assert "PIL" in fields["image"]["description"] or "PNG" in fields["image"]["description"]

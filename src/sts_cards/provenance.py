@@ -55,10 +55,36 @@ class EmbedProvenance:
 
 
 @dataclass
+class ArtProvenance:
+    """Records how card portrait art was extracted from local game files.
+
+    STS1 art comes from desktop-1.0.jar (zipfile); STS2 art comes from
+    sts2.pck (GDRE Tools). Extraction is local-only — game files are not
+    redistributed.
+    """
+    extraction_source: str  # "jar" or "pck"
+    source_file_sha256: str
+    extracted_at: str  # ISO timestamp
+    n_art_files: int
+    n_cards_total: int
+    resolution: str  # "high" or "low"
+    image_dimensions: tuple[int, int] | None = None
+    gdre_tools_version: str | None = None  # only meaningful for STS2
+
+    def to_dict(self) -> dict[str, Any]:
+        d = asdict(self)
+        # JSON has no native tuple — store as a 2-element list and read back as tuple
+        if self.image_dimensions is not None:
+            d["image_dimensions"] = list(self.image_dimensions)
+        return d
+
+
+@dataclass
 class DatasetProvenance:
     """Top-level provenance attached to each dataset snapshot."""
     fetch: FetchProvenance
     embed: EmbedProvenance | None = None
+    art: ArtProvenance | None = None
     package_version: str = __version__
     python_version: str = field(default_factory=lambda: sys.version.split()[0])
     platform: str = field(default_factory=platform.platform)
@@ -67,6 +93,7 @@ class DatasetProvenance:
         return {
             "fetch": self.fetch.to_dict(),
             "embed": self.embed.to_dict() if self.embed else None,
+            "art": self.art.to_dict() if self.art else None,
             "package_version": self.package_version,
             "python_version": self.python_version,
             "platform": self.platform,
@@ -81,11 +108,17 @@ class DatasetProvenance:
         data = json.loads(path.read_text())
         fetch = FetchProvenance(**data["fetch"])
         embed = EmbedProvenance(**data["embed"]) if data.get("embed") else None
-        # Kwargs not exposed in __init__ signatures of frozen dataclasses are
-        # filtered, but ours aren't frozen — pass through what we got.
+        art = None
+        if data.get("art"):
+            art_data = dict(data["art"])
+            dims = art_data.get("image_dimensions")
+            if dims is not None:
+                art_data["image_dimensions"] = tuple(dims)
+            art = ArtProvenance(**art_data)
         return cls(
             fetch=fetch,
             embed=embed,
+            art=art,
             package_version=data.get("package_version", "unknown"),
             python_version=data.get("python_version", "unknown"),
             platform=data.get("platform", "unknown"),

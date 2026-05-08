@@ -85,10 +85,13 @@ def embed_game(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     full_path = out_dir / f"{game}_cards_with_embeddings.parquet"
-    df.to_parquet(full_path, index=False)
+    # The full file is for in-process use by search/visualize; image bytes
+    # are big and unhelpful here, drop them if extract-art ran earlier.
+    full_df = df.drop(columns=[c for c in ("image", "image_resolution") if c in df.columns])
+    full_df.to_parquet(full_path, index=False)
     full_size_mb = full_path.stat().st_size / 1e6
     log.info("Wrote %d × %dD → %s (%.2f MB) [internal use]",
-             len(df), embeddings.shape[1], full_path, full_size_mb)
+             len(full_df), embeddings.shape[1], full_path, full_size_mb)
 
     slim_cols = ["id", "game", "name", "card_text", "embedding"]
     slim_path = out_dir / f"{game}_embeddings.parquet"

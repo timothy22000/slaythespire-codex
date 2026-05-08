@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from sts_cards.provenance import (
+    ArtProvenance,
     DatasetProvenance,
     EmbedProvenance,
     FetchProvenance,
@@ -93,3 +94,56 @@ def test_provenance_includes_environment_metadata():
     assert d["package_version"]
     assert d["python_version"]
     assert d["platform"]
+    # Art is opt-in; absent until extract-art runs
+    assert d["art"] is None
+
+
+def test_art_provenance_roundtrip(tmp_path):
+    prov = DatasetProvenance(
+        fetch=FetchProvenance(source="x", source_fetched_at="t",
+                              game="sts1", language="en", n_cards=10),
+        art=ArtProvenance(
+            extraction_source="jar",
+            source_file_sha256="a" * 64,
+            extracted_at="2026-05-08T00:00:00+00:00",
+            n_art_files=9,
+            n_cards_total=10,
+            resolution="high",
+            image_dimensions=(1024, 1024),
+        ),
+    )
+    out = tmp_path / "p.json"
+    prov.write(out)
+
+    loaded = DatasetProvenance.read(out)
+    assert loaded.art is not None
+    assert loaded.art.extraction_source == "jar"
+    assert loaded.art.resolution == "high"
+    # Tuple is preserved across the JSON round-trip
+    assert loaded.art.image_dimensions == (1024, 1024)
+    assert loaded.art.gdre_tools_version is None
+
+
+def test_art_provenance_with_gdre_version(tmp_path):
+    prov = DatasetProvenance(
+        fetch=FetchProvenance(source="x", source_fetched_at="t",
+                              game="sts2", language="en", n_cards=20,
+                              sts_game_version="v0.103.0"),
+        art=ArtProvenance(
+            extraction_source="pck",
+            source_file_sha256="b" * 64,
+            extracted_at="2026-05-08T00:00:00+00:00",
+            n_art_files=18,
+            n_cards_total=20,
+            resolution="high",
+            image_dimensions=None,
+            gdre_tools_version="GDRE Tools 0.7.0",
+        ),
+    )
+    out = tmp_path / "p.json"
+    prov.write(out)
+
+    loaded = DatasetProvenance.read(out)
+    assert loaded.art is not None
+    assert loaded.art.gdre_tools_version == "GDRE Tools 0.7.0"
+    assert loaded.art.image_dimensions is None

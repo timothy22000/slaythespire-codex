@@ -240,5 +240,145 @@ def cache_clear() -> None:
     typer.echo("Cleared.")
 
 
+@app.command(name="diagnose-art")
+def diagnose_art(
+    game: str = typer.Argument(..., help=f"One of {GAMES}"),
+    out_dir: Path = typer.Option(Path("output"), "--out-dir"),
+    jar_path: Path | None = typer.Option(None, "--jar-path",
+                                         help="STS1: path to desktop-1.0.jar"),
+    pck_path: Path | None = typer.Option(None, "--pck-path",
+                                         help="STS2: path to sts2.pck"),
+    gdre_tools_path: str = typer.Option("gdre_tools", "--gdre-tools-path",
+                                        help="STS2: GDRE Tools binary"),
+) -> None:
+    """List candidate card-portrait paths in the local game files and
+    report join rate against {game}_cards.parquet["id"].
+
+    Run this before `extract-art` to verify the path layout. Output is
+    written to {out_dir}/{game}_art_diagnostic.json.
+    """
+    import json as _json
+    from .extract_art import diagnose_jar, diagnose_pck
+
+    _check_game(game)
+    cards_parquet = out_dir / f"{game}_cards.parquet"
+    if not cards_parquet.exists():
+        raise typer.BadParameter(
+            f"{cards_parquet} not found — run `sts-cards fetch {game}` first"
+        )
+
+    if game == "sts1":
+        from .extract_art import locate_jar
+        jar = locate_jar(jar_path)
+        result = diagnose_jar(jar, cards_parquet)
+    else:
+        from .extract_art import locate_pck
+        pck = locate_pck(pck_path)
+        result = diagnose_pck(pck, cards_parquet, gdre_tools_path=gdre_tools_path)
+
+    out_path = out_dir / f"{game}_art_diagnostic.json"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(_json.dumps(result.to_dict(), indent=2))
+    typer.echo(_json.dumps(result.to_dict(), indent=2))
+    typer.echo(f"\nWrote {out_path}")
+    typer.echo(
+        f"\nMatch rate: {result.n_matched}/{result.n_cards_in_parquet} "
+        f"({100 * result.match_rate:.1f}%)"
+    )
+    if result.match_rate < 0.95:
+        typer.echo(
+            "\nWARNING: match rate is below 95%. Inspect "
+            "`unmatched_in_source_sample` and `unmatched_in_parquet_sample` "
+            "before running `extract-art`.",
+            err=True,
+        )
+
+
+@app.command(name="extract-art")
+def extract_art(
+    game: str = typer.Argument(..., help=f"One of {GAMES}"),
+    out_dir: Path = typer.Option(Path("output"), "--out-dir"),
+    jar_path: Path | None = typer.Option(None, "--jar-path",
+                                         help="STS1: path to desktop-1.0.jar"),
+    pck_path: Path | None = typer.Option(None, "--pck-path",
+                                         help="STS2: path to sts2.pck"),
+    gdre_tools_path: str = typer.Option("gdre_tools", "--gdre-tools-path",
+                                        help="STS2: GDRE Tools binary"),
+    resolution: str = typer.Option("high", "--resolution",
+                                   help="'high' or 'low' (STS1 only — STS2 ships one)"),
+) -> None:
+    """Extract card portraits from local game files and attach them as
+    an `image` column on {game}_cards.parquet."""
+    from .extract_art import (
+        attach_art_to_cards, extract_jar_to_memory, extract_pck_to_memory,
+        locate_jar, locate_pck, sample_dimensions, sha256_file,
+        _gdre_version,
+    )
+    from .provenance import ArtProvenance, DatasetProvenance, now_iso
+
+    _check_game(game)
+    if resolution not in ("high", "low"):
+        raise typer.BadParameter("resolution must be 'high' or 'low'")
+    cards_parquet = out_dir / f"{game}_cards.parquet"
+    if not cards_parquet.exists():
+        raise typer.BadParameter(
+            f"{cards_parquet} not found — run `sts-cards fetch {game}` first"
+        )
+
+    if game == "sts1":
+        source_path = locate_jar(jar_path)
+        art = extract_jar_to_memory(source_path, resolution=resolution)
+        extraction_source = "jar"
+        gdre_version = None
+    else:
+        source_path = locate_pck(pck_path)
+        # Prefilter to known card ids so cache + attach skip non-card PNGs.
+        ids = set(pd.read_parquet(cards_parquet)["id"].astype(str))
+        art = extract_pck_to_memory(
+            source_path, resolution=resolution,
+            gdre_tools_path=gdre_tools_path, card_ids=ids,
+        )
+        extraction_source = "pck"
+        try:
+            gdre_version = _gdre_version(gdre_tools_path)
+        except Exception:
+            gdre_version = None
+
+    if not art:
+        raise typer.BadParameter(
+            f"No card art extracted from {source_path}. "
+            f"Run `sts-cards diagnose-art {game}` to check the path layout."
+        )
+
+    stats = attach_art_to_cards(cards_parquet, art, resolution=resolution)
+    typer.echo(
+        f"Attached art to {cards_parquet.name}: "
+        f"{stats['n_matched']}/{stats['n_total']} matched "
+        f"({100 * stats['match_rate']:.1f}%)"
+    )
+
+    # Update provenance
+    prov_path = out_dir / f"{game}_provenance.json"
+    if prov_path.exists():
+        prov = DatasetProvenance.read(prov_path)
+    else:
+        typer.echo(f"WARNING: no provenance at {prov_path} — skipping art provenance",
+                   err=True)
+        return
+
+    prov.art = ArtProvenance(
+        extraction_source=extraction_source,
+        source_file_sha256=sha256_file(source_path),
+        extracted_at=now_iso(),
+        n_art_files=int(stats["n_matched"]),
+        n_cards_total=int(stats["n_total"]),
+        resolution=resolution,
+        image_dimensions=sample_dimensions(art),
+        gdre_tools_version=gdre_version,
+    )
+    prov.write(prov_path)
+    typer.echo(f"Updated provenance → {prov_path}")
+
+
 if __name__ == "__main__":
     app()

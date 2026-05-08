@@ -89,6 +89,21 @@ jobs:
           fi
           sts-cards fetch ${{ steps.resolve.outputs.game }} $ARGS
 
+      - name: Note card-art status (CI never extracts)
+        run: |
+          python - <<'PY'
+          import pandas as pd
+          p = "output/${{ steps.resolve.outputs.game }}_cards.parquet"
+          df = pd.read_parquet(p)
+          if "image" in df.columns:
+              n = int(df["image"].notna().sum())
+              print(f"{p} has `image` column: {n}/{len(df)} populated")
+          else:
+              print(f"{p} has no `image` column — cards will publish without art. "
+                    "Run `sts-cards extract-art {game}` locally and trigger the "
+                    "`Upload cards (with art)` workflow if you want portraits shipped.")
+          PY
+
       - name: Embed cards
         run: sts-cards embed ${{ steps.resolve.outputs.game }}
 

@@ -17,6 +17,11 @@ tags:
 configs:
 - config_name: default
   data_files: cards.parquet
+features:
+- name: image
+  dtype: image
+- name: image_resolution
+  dtype: string
 ---
 
 # Slay the Spire 1: Cards
@@ -72,12 +77,40 @@ People doing card-text classification, deckbuilder simulators, or design analysi
 
 The schema also includes STS2-specific columns (`orbs_channeled`, `orbs_referenced`, `forge_value`, `souls_added`) for cross-game compatibility, but they're empty/null for all STS1 cards.
 
+### Card art columns
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `image` | image (PNG bytes) | Card portrait art. Decoded to a PIL Image automatically by `datasets.load_dataset()`. Cards without art get `null`. |
+| `image_resolution` | string | `"high"` (~1024×1024) or `"low"` (~256×256). |
+
+## Card art
+
+Each row carries the in-game card portrait as a PIL-decodable image. The HuggingFace dataset viewer renders thumbnails inline.
+
+- **Source.** Card portraits are extracted directly from a local Steam install of Slay the Spire (`desktop-1.0.jar`). Game files are not redistributed by this pipeline; extraction happens on the maintainer's machine.
+- **Resolution.** This snapshot ships the high-resolution variant (~1024×1024 from `images/1024Portraits/`). Downscale at use time with `image.resize(...)` if you need smaller.
+- **Why this is large.** The cards Parquet jumps from ~200 KB to ~50 MB once portraits are inlined. If you don't need the bytes, use `streaming=True` or drop the `image` column after loading.
+- **Attribution.** Slay the Spire art is © [Mega Crit](https://www.megacrit.com/). Mega Crit has publicly blessed redistribution of fan-extracted card art for tooling and mods (e.g. [Slay the Relics](https://github.com/Skrelpoid/SlayTheRelics) and broader STS1 modding ecosystem). This dataset includes a takedown clause regardless: if Mega Crit objects, the `image` column will be removed.
+
 ## Loading
 
 ```python
 from datasets import load_dataset
 
 cards = load_dataset("t22000t/slay-the-spire-1-cards", split="train")
+print(cards[0]["name"], "→", cards[0]["image"])
+# Strike → <PIL.PngImagePlugin.PngImageFile image mode=RGBA size=1024x1024>
+
+cards[0]["image"].size      # (1024, 1024)
+# cards[0]["image"].show()  # opens the portrait in your default viewer
+```
+
+To skip the image bytes (small download, drop the column):
+
+```python
+cards = load_dataset("t22000t/slay-the-spire-1-cards",
+                     split="train", streaming=True)
 ```
 
 ## Joining with the embeddings dataset

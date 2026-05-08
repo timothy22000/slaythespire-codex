@@ -43,8 +43,14 @@ _DTYPE_TO_CROISSANT = {
 }
 
 
-def _croissant_type(dtype_str: str) -> str:
-    """Best-effort mapping from pandas dtype to a Croissant type."""
+def _croissant_type(dtype_str: str, column_name: str | None = None) -> str:
+    """Best-effort mapping from pandas dtype to a Croissant type.
+
+    The `image` column is bytes-typed in Parquet but represents PNG-encoded
+    portrait art — Croissant has a dedicated ImageObject type for that.
+    """
+    if column_name == "image":
+        return "sc:ImageObject"
     return _DTYPE_TO_CROISSANT.get(dtype_str, "sc:Text")
 
 
@@ -54,7 +60,7 @@ def _build_field(name: str, dtype: str, description: str) -> dict[str, Any]:
         "@id": f"field/{name}",
         "name": name,
         "description": description,
-        "dataType": _croissant_type(dtype),
+        "dataType": _croissant_type(dtype, column_name=name),
         "source": {
             "fileObject": {"@id": "cards-parquet"},
             "extract": {"column": name},
@@ -93,6 +99,11 @@ _FIELD_DESCRIPTIONS: dict[str, str] = {
     "orbs_referenced": "STS2: JSON list of Orb types mentioned in the description.",
     "forge_value": "STS2: Forge value if the card has a 'Forge N' clause.",
     "souls_added": "STS2: number of Souls the card adds, if any.",
+    "image": "Card portrait art as raw PNG bytes. Decoded to a PIL Image when "
+             "the dataset is loaded with `datasets.load_dataset()` and the "
+             "`image` column declared as the `Image` feature.",
+    "image_resolution": "Source-art resolution variant: 'high' (~1024×1024) "
+                        "or 'low' (~256×256).",
 }
 
 

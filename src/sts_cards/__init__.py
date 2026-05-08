@@ -1,6 +1,6 @@
 """sts-cards: Slay the Spire 1 + 2 card dataset and embedding pipeline."""
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 GAMES = ("sts1", "sts2")
 
