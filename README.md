@@ -5,6 +5,9 @@ Slay the Spire 1 + 2 card dataset and embedding pipeline. **The four HuggingFace
 [![License: MIT](https://img.shields.io/badge/code-MIT-blue.svg)](LICENSE)
 [![License: CC BY 4.0](https://img.shields.io/badge/data-CC%20BY%204.0-lightgrey.svg)](LICENSE-DATA)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
+[![HuggingFace Collection](https://img.shields.io/badge/%F0%9F%A4%97%20HF-Collection-yellow)](https://huggingface.co/collections/t22000t/slaythespire-codex)
+
+> **Try the live demos:** [Archetype Map](https://huggingface.co/spaces/t22000t/slaythespire-archetype-map) · [Synergy Inspector](https://huggingface.co/spaces/t22000t/slaythespire-synergy-inspector) · [Build Me a Deck](https://huggingface.co/spaces/t22000t/slaythespire-build-me-a-deck)
 
 ## Datasets
 
@@ -12,14 +15,28 @@ This pipeline produces **four** HuggingFace datasets, two per game, splitting ca
 
 | Game | Kind | HuggingFace |
 | --- | --- | --- |
-| Slay the Spire 1 | Cards (metadata + features) | `t22000t/slay-the-spire-1-cards` |
-| Slay the Spire 1 | Embeddings (vectors + UMAP) | `t22000t/slay-the-spire-1-card-embeddings` |
-| Slay the Spire 2 | Cards (metadata + features) | `t22000t/slay-the-spire-2-cards` |
-| Slay the Spire 2 | Embeddings (vectors + UMAP) | `t22000t/slay-the-spire-2-card-embeddings` |
+| Slay the Spire 1 | Cards (metadata + features) | [`t22000t/slay-the-spire-1-cards`](https://huggingface.co/datasets/t22000t/slay-the-spire-1-cards) |
+| Slay the Spire 1 | Embeddings (vectors + UMAP) | [`t22000t/slay-the-spire-1-card-embeddings`](https://huggingface.co/datasets/t22000t/slay-the-spire-1-card-embeddings) |
+| Slay the Spire 2 | Cards (metadata + features) | [`t22000t/slay-the-spire-2-cards`](https://huggingface.co/datasets/t22000t/slay-the-spire-2-cards) |
+| Slay the Spire 2 | Embeddings (vectors + UMAP) | [`t22000t/slay-the-spire-2-card-embeddings`](https://huggingface.co/datasets/t22000t/slay-the-spire-2-card-embeddings) |
+
+All four datasets plus the live demos are bundled in the [**slaythespire-codex collection**](https://huggingface.co/collections/t22000t/slaythespire-codex) on HuggingFace.
 
 Cards and embeddings are joinable on `id`. The split keeps each repo focused, people running text classifiers on cards don't pay for an embedding column they'll discard, and the embedding repos can be re-versioned independently when the model changes without churning the cards repos' commit history.
 
 Both games' embeddings use the same model and instruction prompt, so vectors are directly comparable across games for cross-game similarity search.
+
+## Live demos (HuggingFace Spaces)
+
+Three Gradio Spaces sit on top of the published datasets, all served from the same vector space so results are directly comparable:
+
+| Space | What it does |
+| --- | --- |
+| [**Archetype Map**](https://huggingface.co/spaces/t22000t/slaythespire-archetype-map) | Interactive UMAP scatter of every STS1 + STS2 card. Pick a card to see its 5 nearest neighbors computed in the full 1024-D embedding space (not the 2D projection). |
+| [**Synergy Inspector**](https://huggingface.co/spaces/t22000t/slaythespire-synergy-inspector) | Custom-card design assistant. Drop in a card spec (form, JSON, CSV, raw text, or a screenshot routed through Claude Haiku Vision) and get a tiered similarity verdict, top-10 closest existing cards, and a stats outlier check on damage / block. |
+| [**Build Me a Deck**](https://huggingface.co/spaces/t22000t/slaythespire-build-me-a-deck) | Chat-first deck builder. Describe a playstyle in plain English; the Space encodes the prompt with the same Qwen3 model, runs greedy similarity-based selection over the chosen character's draftable pool, enforces type-mix and mana-curve feasibility, and returns a 20-card deck with a fit-summary banner and boss-aware strategy reasoning. |
+
+Source for all three Spaces lives under [`spaces/`](spaces/) in this repo. Each has its own `deploy.sh` that syncs to HuggingFace via a separate working tree under `.hf-deploy/` so the parent repo stays clean.
 
 ## Quick start
 

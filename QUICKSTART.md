@@ -2,6 +2,8 @@
 
 A condensed setup guide. For full project docs see [`DOCUMENTATION.md`](DOCUMENTATION.md).
 
+> Just want to play with the data without installing anything? The full bundle (4 datasets + 3 Spaces) lives at [**huggingface.co/collections/t22000t/slaythespire-codex**](https://huggingface.co/collections/t22000t/slaythespire-codex).
+
 ## 1. Set up a virtual environment
 
 ```bash
@@ -103,7 +105,27 @@ sts-cards upload sts2 --kind cards --repo t22000t/slay-the-spire-2-cards
 sts-cards upload sts2 --kind embeddings --repo t22000t/slay-the-spire-2-card-embeddings
 ```
 
-## 8. Set up GitHub Actions (optional)
+## 8. Run a Gradio Space locally (optional)
+
+Three Gradio Spaces live in [`spaces/`](spaces/) and are deployed at:
+
+- [t22000t/slaythespire-archetype-map](https://huggingface.co/spaces/t22000t/slaythespire-archetype-map) — interactive UMAP scatter with nearest-neighbor lookup
+- [t22000t/slaythespire-synergy-inspector](https://huggingface.co/spaces/t22000t/slaythespire-synergy-inspector) — custom-card design assistant (form / JSON / CSV / text / screenshot input)
+- [t22000t/slaythespire-build-me-a-deck](https://huggingface.co/spaces/t22000t/slaythespire-build-me-a-deck) — chat-first deck builder driven by playstyle prompts
+
+To run one locally:
+
+```bash
+cd spaces/archetype-map      # or synergy-inspector / build-me-a-deck
+pip install -r requirements.txt
+python app.py                # serves on http://127.0.0.1:7860
+```
+
+Each Space pulls its data straight from the published HF datasets — no local fetch/embed run required. The `synergy-inspector` and `build-me-a-deck` Spaces additionally load `Qwen/Qwen3-Embedding-0.6B` (~1.2 GB) on first launch so user-submitted prompts/cards are encoded into the same vector space as the corpus.
+
+To redeploy your fork to HuggingFace, run `./deploy.sh` from inside the Space directory. It uses a separate working tree under `.hf-deploy/` (gitignored) so the parent repo stays free of HF git artifacts.
+
+## 9. Set up GitHub Actions (optional)
 
 Push the repo to GitHub. Add `HF_TOKEN` as a repository secret in `Settings → Secrets and variables → Actions`. The workflows in `.github/workflows/`:
 
