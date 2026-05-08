@@ -31,7 +31,7 @@ For Slay the Spire 2 embeddings, see **[`t22000t/slay-the-spire-2-card-embedding
 
 ## Dataset Description
 
-- **Repository:** https://github.com/timothy22000/slaythespire-codex
+- **Repository:** [`timothy22000/slaythespire-codex`](https://github.com/timothy22000/slaythespire-codex)
 - **Card count:** 360
 - **Embedding model:** [`Qwen/Qwen3-Embedding-0.6B`](https://huggingface.co/Qwen/Qwen3-Embedding-0.6B)
 - **Embedding dimension:** 1024

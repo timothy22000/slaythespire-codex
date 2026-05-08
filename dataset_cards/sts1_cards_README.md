@@ -30,7 +30,7 @@ For Slay the Spire 2, see **[`t22000t/slay-the-spire-2-cards`](https://huggingfa
 
 ## Dataset Description
 
-- **Repository:** https://github.com/timothy22000/slaythespire-codex
+- **Repository:** [`timothy22000/slaythespire-codex`](https://github.com/timothy22000/slaythespire-codex)
 - **Source data:** Parsed from game files by [`nkhoit/spire-archive`](https://github.com/nkhoit/spire-archive)
 - **Card count:** 360
 - **Languages:** English

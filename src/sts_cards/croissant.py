@@ -103,6 +103,7 @@ def build_croissant(
     kind: str,
     repo_id: str,
     license_url: str = "https://creativecommons.org/licenses/by/4.0/",
+    code_repository: str = "https://github.com/timothy22000/slaythespire-codex",
 ) -> dict[str, Any]:
     """Build a Croissant JSON-LD descriptor for one (game, kind) dataset.
 
@@ -198,6 +199,11 @@ def build_croissant(
         "url": f"https://huggingface.co/datasets/{repo_id}",
         "version": version,
         "citeAs": citation,
+        "isBasedOn": {
+            "@type": "sc:SoftwareSourceCode",
+            "name": "sts-cards",
+            "codeRepository": code_repository,
+        },
         "isLiveDataset": game == "sts2",
         "keywords": [
             "slay-the-spire", "card-game",
@@ -238,6 +244,7 @@ def write_croissant(
     kind: str,
     repo_id: str,
     out_path: Path | None = None,
+    code_repository: str = "https://github.com/timothy22000/slaythespire-codex",
 ) -> Path:
     """Write a Croissant descriptor for one (game, kind) dataset.
 
@@ -249,7 +256,10 @@ def write_croissant(
     if kind not in ("cards", "embeddings"):
         raise ValueError(f"kind must be 'cards' or 'embeddings', got {kind!r}")
 
-    croissant = build_croissant(parquet_path, game=game, kind=kind, repo_id=repo_id)
+    croissant = build_croissant(
+        parquet_path, game=game, kind=kind, repo_id=repo_id,
+        code_repository=code_repository,
+    )
     if out_path is None:
         out_path = parquet_path.parent / f"{game}_{kind}_croissant.json"
     out_path.write_text(json.dumps(croissant, indent=2, ensure_ascii=False))

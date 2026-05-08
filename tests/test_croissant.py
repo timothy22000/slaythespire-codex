@@ -124,6 +124,25 @@ def test_write_croissant_produces_valid_json(sample_cards_parquet, tmp_path):
     assert parsed["@type"] == "sc:Dataset"
 
 
+def test_croissant_includes_code_repository(sample_cards_parquet):
+    cr = build_croissant(
+        sample_cards_parquet, game="sts1", kind="cards",
+        repo_id="user/slay-the-spire-1-cards",
+    )
+    assert cr["isBasedOn"]["@type"] == "sc:SoftwareSourceCode"
+    assert cr["isBasedOn"]["codeRepository"] == (
+        "https://github.com/timothy22000/slaythespire-codex"
+    )
+
+    # Override is honored
+    cr2 = build_croissant(
+        sample_cards_parquet, game="sts1", kind="cards",
+        repo_id="user/slay-the-spire-1-cards",
+        code_repository="https://github.com/other/fork",
+    )
+    assert cr2["isBasedOn"]["codeRepository"] == "https://github.com/other/fork"
+
+
 def test_croissant_includes_field_descriptions(sample_cards_parquet):
     cr = build_croissant(
         sample_cards_parquet, game="sts1", kind="cards",
