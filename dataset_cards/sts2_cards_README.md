@@ -55,12 +55,21 @@ Card-text classification, design analysis, modding, and deckbuilder simulators d
 
 ## Data Fields
 
-### Core columns
+Columns appear below in the order they're stored on disk. `id` and the portrait columns lead the row so the HF dataset viewer surfaces a thumbnail before metadata text.
+
+### Identifier + portrait
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | string | Stable card identifier, **the join key to the embeddings, multimodal-embeddings, and derived datasets** |
+| `image` | HF `Image` feature (`struct<bytes, path>`) | Card portrait art. Decoded to a PIL Image automatically by `datasets.load_dataset()`; via `pd.read_parquet` you'll get a dict (`{"bytes": ..., "path": null}`). Every STS2 card in this snapshot ships a portrait. |
+| `image_resolution` | string | Resolution variant of the source asset. |
+
+### Card metadata
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `game` | string | Always `"sts2"` |
-| `id` | string | Stable card identifier, **the join key to the embeddings dataset** |
 | `name` | string | Display name |
 | `type` | string | One of `Attack`, `Skill`, `Power`, `Status`, `Curse`, `Quest` |
 | `rarity` | string | One of `Basic`, `Common`, `Uncommon`, `Rare`, `Special`, `Curse`, `Status`, `Ancient`, `Event`, `Quest`, `Token` (Title Case) |
@@ -73,12 +82,14 @@ Card-text classification, design analysis, modding, and deckbuilder simulators d
 
 ### Generic feature columns
 
+Numeric columns surface as `double` on the wire (pandas casts ints with nulls to float); semantically they're integer counts.
+
 | Field | Type | Description |
 | --- | --- | --- |
-| `damage` | int \| null | Primary damage value (e.g. "Deal 6 damage" → 6) |
-| `damage_upgraded` | int \| null | Same for the upgraded form |
-| `block` | int \| null | Primary block value |
-| `block_upgraded` | int \| null | Same for the upgraded form |
+| `damage` | float \| null | Primary damage value (e.g. "Deal 6 damage" → 6) |
+| `damage_upgraded` | float \| null | Same for the upgraded form |
+| `block` | float \| null | Primary block value |
+| `block_upgraded` | float \| null | Same for the upgraded form |
 | `targets_all_enemies` | bool | True if the card hits ALL enemies (AOE) |
 | `status_effects_applied` | string (JSON list) | `[{effect, count}]` for Vulnerable/Weak/Frail/etc. |
 | `mechanics` | string (JSON list) | Mechanic keywords (declared + inferred from text) |
@@ -89,15 +100,8 @@ Card-text classification, design analysis, modding, and deckbuilder simulators d
 | --- | --- | --- |
 | `orbs_channeled` | string (JSON list) | `[{type, count}]` for Orbs the card channels |
 | `orbs_referenced` | string (JSON list) | Orb types mentioned in the description, channeled or not |
-| `forge_value` | int \| null | Forge value if the card has a "Forge N" clause |
-| `souls_added` | int \| null | Number of Souls added (Necrobinder mechanic) |
-
-### Card art columns
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `image` | HF `Image` feature (`struct<bytes, path>`) | Card portrait art. Decoded to a PIL Image automatically by `datasets.load_dataset()`; via `pd.read_parquet` you'll get a dict (`{"bytes": ..., "path": null}`). Cards without art get `null`. |
-| `image_resolution` | string | Resolution variant of the source asset. |
+| `forge_value` | float \| null | Forge value if the card has a "Forge N" clause |
+| `souls_added` | float \| null | Number of Souls added (Necrobinder mechanic) |
 
 ## Card art
 

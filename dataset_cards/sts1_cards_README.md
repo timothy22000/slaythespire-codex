@@ -51,12 +51,21 @@ People doing card-text classification, deckbuilder simulators, or design analysi
 
 ## Data Fields
 
-### Core columns
+Columns appear below in the order they're stored on disk. `id` and the portrait columns lead the row so the HF dataset viewer surfaces a thumbnail before metadata text.
+
+### Identifier + portrait
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | string | Stable card identifier, **the join key to the embeddings, multimodal-embeddings, and derived datasets** |
+| `image` | HF `Image` feature (`struct<bytes, path>`) | Card portrait art. Decoded to a PIL Image automatically by `datasets.load_dataset()`; via `pd.read_parquet` you'll get a dict (`{"bytes": ..., "path": null}`). Cards without art get `null` (1 of 360: `IMPULSE`). |
+| `image_resolution` | string | `"high"` (~1024×1024) or `"low"` (~256×256). |
+
+### Card metadata
 
 | Field | Type | Description |
 | --- | --- | --- |
 | `game` | string | Always `"sts1"` |
-| `id` | string | Stable card identifier, **the join key to the embeddings dataset** |
 | `name` | string | Display name |
 | `type` | string | `Attack`, `Skill`, `Power`, `Status`, or `Curse` |
 | `rarity` | string | One of `Basic`, `Common`, `Uncommon`, `Rare`, `Special`, `Curse` (Title Case) |
@@ -69,24 +78,19 @@ People doing card-text classification, deckbuilder simulators, or design analysi
 
 ### Derived feature columns
 
+Numeric columns surface as `double` on the wire (pandas casts ints with nulls to float); semantically they're integer counts.
+
 | Field | Type | Description |
 | --- | --- | --- |
-| `damage` | int \| null | Primary damage value (e.g. "Deal 6 damage" → 6) |
-| `damage_upgraded` | int \| null | Same for the upgraded form |
-| `block` | int \| null | Primary block value |
-| `block_upgraded` | int \| null | Same for the upgraded form |
+| `damage` | float \| null | Primary damage value (e.g. "Deal 6 damage" → 6) |
+| `damage_upgraded` | float \| null | Same for the upgraded form |
+| `block` | float \| null | Primary block value |
+| `block_upgraded` | float \| null | Same for the upgraded form |
 | `targets_all_enemies` | bool | True if the card hits ALL enemies (AOE) |
 | `status_effects_applied` | string (JSON list) | `[{effect, count}]` for Vulnerable/Weak/Frail/Strength/Dexterity/Poison |
 | `mechanics` | string (JSON list) | Mechanic keywords (declared + inferred from text) |
 
-The schema also includes STS2-specific columns (`orbs_channeled`, `orbs_referenced`, `forge_value`, `souls_added`) for cross-game compatibility, but they're empty/null for all STS1 cards.
-
-### Card art columns
-
-| Field | Type | Description |
-| --- | --- | --- |
-| `image` | HF `Image` feature (`struct<bytes, path>`) | Card portrait art. Decoded to a PIL Image automatically by `datasets.load_dataset()`; via `pd.read_parquet` you'll get a dict (`{"bytes": ..., "path": null}`). Cards without art get `null`. |
-| `image_resolution` | string | `"high"` (~1024×1024) or `"low"` (~256×256). |
+The schema also carries STS2-specific columns (`orbs_channeled`, `orbs_referenced`, `forge_value`, `souls_added`) for cross-game compatibility; they're all-null on STS1 rows.
 
 ## Card art
 
