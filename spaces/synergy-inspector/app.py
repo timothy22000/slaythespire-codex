@@ -180,10 +180,10 @@ def _outlier_banner_html(warnings: list[dict]) -> str:
     cls_for = {"strong": "synergy-outlier-strong",
                "soft": "synergy-outlier-soft",
                "info": "synergy-outlier-info"}
-    icon_for = {"strong": "⚠", "soft": "⚡", "info": "ℹ"}
+    label_for = {"strong": "High", "soft": "Note", "info": "Info"}
     items = "".join(
         f'<div class="synergy-outlier-item {cls_for.get(w["severity"], "synergy-outlier-info")}">'
-        f'<span class="synergy-outlier-icon">{icon_for.get(w["severity"], "•")}</span>'
+        f'<span class="synergy-outlier-icon">{label_for.get(w["severity"], "Info")}</span>'
         f'<span>{_html.escape(w["message"])}</span>'
         f'</div>'
         for w in warnings
@@ -194,11 +194,11 @@ def _outlier_banner_html(warnings: list[dict]) -> str:
 def _empty_state_html() -> str:
     return """
 <div class="synergy-empty">
-  <div class="synergy-empty-icon">✨</div>
-  <div class="synergy-empty-title">Submit a card on the left to analyze</div>
+  <div class="synergy-empty-eyebrow">No analysis yet</div>
+  <div class="synergy-empty-title">Submit a card to see its closest matches</div>
   <div class="synergy-empty-tip">
-    New here? Click <b>🎲 Randomize</b> to load an existing card and see what
-    a result looks like, then edit it to test your own ideas.
+    New here? Tap <b>Randomize</b> to load an existing card and see what a
+    result looks like, then edit it to test your own ideas.
   </div>
 </div>
 """.strip()
@@ -617,72 +617,257 @@ def load_card_file(file_obj, game_label: str):
 # ---------------------------------------------------------------------------
 
 CUSTOM_CSS = """
-.gradio-container { max-width: 1240px !important; margin: 0 auto !important; }
+/* ============================================================
+   Synergy Inspector - emerald accent on zinc neutrals.
+   Single accent. No decorative gradients. 4px spacing grid.
+   ============================================================ */
+:root {
+  --syn-accent: #047857;            /* emerald-700 */
+  --syn-accent-soft: #d1fae5;       /* emerald-100 */
+  --syn-accent-ring: rgba(4,120,87,0.18);
+  --syn-success: #047857;
+  --syn-warning: #b45309;
+  --syn-danger:  #b91c1c;
+  --syn-info:    #1d4ed8;
+  --syn-fg:      #18181b;           /* zinc-900 */
+  --syn-fg-muted:#52525b;           /* zinc-600 */
+  --syn-fg-soft: #71717a;           /* zinc-500 */
+  --syn-surface: #ffffff;
+  --syn-surface-2:#fafafa;          /* zinc-50 */
+  --syn-border:  #e4e4e7;           /* zinc-200 */
+  --syn-border-strong:#d4d4d8;      /* zinc-300 */
+}
+.dark, .gradio-container.dark {
+  --syn-accent: #34d399;            /* emerald-400 */
+  --syn-accent-soft: rgba(52,211,153,0.10);
+  --syn-accent-ring: rgba(52,211,153,0.28);
+  --syn-success: #34d399;
+  --syn-warning: #fbbf24;
+  --syn-danger:  #f87171;
+  --syn-info:    #60a5fa;
+  --syn-fg:      #fafafa;
+  --syn-fg-muted:#a1a1aa;           /* zinc-400 */
+  --syn-fg-soft: #71717a;
+  --syn-surface: #18181b;
+  --syn-surface-2:#27272a;          /* zinc-800 */
+  --syn-border:  #27272a;
+  --syn-border-strong:#3f3f46;
+}
 
-/* Header */
+.gradio-container {
+  max-width: 1240px !important;
+  margin: 0 auto !important;
+  font-feature-settings: "ss01", "cv11";
+}
+
+/* ---------- Hero ---------- */
 .synergy-hero {
-  padding: 18px 0 6px 0;
-  border-bottom: 1px solid var(--border-color-primary);
-  margin-bottom: 16px;
+  padding: 32px 4px 22px 4px;
+  border-bottom: 1px solid var(--syn-border);
+  margin-bottom: 22px;
+}
+.synergy-hero-eyebrow {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--syn-accent);
+  margin-bottom: 10px;
 }
 .synergy-hero h1 {
   margin: 0 0 6px 0;
-  font-size: 26px;
-  letter-spacing: -0.01em;
+  font-size: 30px;
+  font-weight: 700;
+  letter-spacing: -0.022em;
+  color: var(--syn-fg);
+  line-height: 1.15;
 }
 .synergy-hero p {
   margin: 0;
-  color: var(--body-text-color-subdued);
-  font-size: 14px;
-  line-height: 1.5;
-  max-width: 70ch;
+  color: var(--syn-fg-muted);
+  font-size: 15px;
+  line-height: 1.55;
+  max-width: 72ch;
 }
 
-/* Section labels */
+/* ---------- Section labels ---------- */
 .synergy-section-label {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.10em;
   text-transform: uppercase;
-  color: var(--body-text-color-subdued);
-  margin: 8px 0 6px 2px;
+  color: var(--syn-fg-soft);
+  margin: 18px 0 8px 2px;
 }
 
-/* Verdict banner */
+/* ---------- Form column tweaks ---------- */
+.synergy-form-group { margin-bottom: 4px; }
+
+/* Game radio: segmented control */
+.synergy-game-radio { border: none !important; background: transparent !important; padding: 0 !important; }
+.synergy-game-radio > .wrap,
+.synergy-game-radio .form,
+.synergy-game-radio .wrap-inner {
+  background: var(--syn-surface-2) !important;
+  border-radius: 8px !important;
+  padding: 3px !important;
+  display: inline-flex !important;
+  gap: 0 !important;
+  border: 1px solid var(--syn-border) !important;
+}
+.synergy-game-radio label {
+  font-size: 12.5px !important;
+  font-weight: 500 !important;
+  padding: 5px 14px !important;
+  border-radius: 6px !important;
+  border: none !important;
+  margin: 0 !important;
+  cursor: pointer;
+  color: var(--syn-fg-muted);
+  transition: color 0.15s ease, background 0.15s ease;
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+}
+.synergy-game-radio label:hover { color: var(--syn-fg); }
+.synergy-game-radio label:has(input:checked),
+.synergy-game-radio input:checked + label,
+.synergy-game-radio label.selected {
+  background: var(--syn-surface) !important;
+  color: var(--syn-fg) !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  font-weight: 600 !important;
+}
+.synergy-game-radio input[type="radio"] { display: none; }
+
+/* ---------- Quick-start buttons ---------- */
+.synergy-quick-row { gap: 10px !important; align-items: stretch !important; }
+.synergy-quick-btn,
+.synergy-quick-btn button,
+.synergy-quick-btn label {
+  height: 44px !important;
+  min-height: 44px !important;
+  border-radius: 8px !important;
+  font-size: 13.5px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.005em;
+  background: var(--syn-surface) !important;
+  border: 1px solid var(--syn-border) !important;
+  color: var(--syn-fg-muted) !important;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+.synergy-quick-btn button:hover,
+.synergy-quick-btn label:hover {
+  border-color: var(--syn-border-strong) !important;
+  color: var(--syn-fg) !important;
+  background: var(--syn-surface-2) !important;
+}
+
+/* ---------- Analyze button (primary CTA) ---------- */
+.synergy-analyze-btn,
+.synergy-analyze-btn button {
+  height: 48px !important;
+  min-height: 48px !important;
+  border-radius: 10px !important;
+  background: var(--syn-accent) !important;
+  border: 1px solid var(--syn-accent) !important;
+  color: white !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.005em;
+  transition: filter 0.15s ease, transform 0.06s ease;
+  margin-top: 8px;
+}
+.synergy-analyze-btn button:hover { filter: brightness(0.95); }
+.synergy-analyze-btn button:active { transform: translateY(1px); }
+
+/* ---------- Form inputs: subtler chrome ---------- */
+.synergy-form-group .form,
+.synergy-form-group fieldset,
+.synergy-form-group .gradio-group {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+}
+.synergy-form-group input,
+.synergy-form-group textarea,
+.synergy-form-group select,
+.synergy-form-group .single-select {
+  background: var(--syn-surface) !important;
+  border: 1px solid var(--syn-border) !important;
+  border-radius: 8px !important;
+  font-size: 13.5px !important;
+  color: var(--syn-fg) !important;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.synergy-form-group input:focus,
+.synergy-form-group textarea:focus,
+.synergy-form-group .single-select:focus-within {
+  border-color: var(--syn-accent) !important;
+  box-shadow: 0 0 0 4px var(--syn-accent-ring) !important;
+  outline: none !important;
+}
+.synergy-form-group label > span {
+  font-size: 12px !important;
+  color: var(--syn-fg-muted) !important;
+  font-weight: 500 !important;
+}
+
+/* ---------- Verdict banners (border-left only, no flat fills) ---------- */
 .synergy-banner {
   padding: 18px 22px;
-  border-radius: 12px;
-  border-left-width: 6px;
-  border-left-style: solid;
-  margin-bottom: 14px;
-  background-clip: padding-box;
+  border: 1px solid var(--syn-border);
+  border-left: 3px solid;
+  border-radius: 4px;
+  background: var(--syn-surface);
+  margin-bottom: 16px;
 }
-.synergy-tier-strong { border-left-color: #dc2626; background: #fef2f2; }
-.synergy-tier-soft   { border-left-color: #ea580c; background: #fff7ed; }
-.synergy-tier-neutral{ border-left-color: #6b7280; background: #f9fafb; }
-.synergy-tier-novel  { border-left-color: #16a34a; background: #f0fdf4; }
-.dark .synergy-tier-strong { background: rgba(220,38,38,0.10); }
-.dark .synergy-tier-soft   { background: rgba(234,88,12,0.10); }
-.dark .synergy-tier-neutral{ background: rgba(107,114,128,0.10); }
-.dark .synergy-tier-novel  { background: rgba(22,163,74,0.10); }
+.synergy-tier-strong { border-left-color: var(--syn-danger); }
+.synergy-tier-soft   { border-left-color: var(--syn-warning); }
+.synergy-tier-neutral{ border-left-color: var(--syn-fg-soft); }
+.synergy-tier-novel  { border-left-color: var(--syn-success); }
 
-.synergy-banner-headline { font-size: 18px; font-weight: 600; color: var(--body-text-color); }
-.synergy-banner-blurb    { font-size: 14px; color: var(--body-text-color-subdued); margin: 4px 0 14px 0; }
+.synergy-banner-headline {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--syn-fg);
+  font-variant-numeric: tabular-nums;
+}
+.synergy-banner-blurb {
+  font-size: 13px;
+  color: var(--syn-fg-muted);
+  margin: 4px 0 14px 0;
+  line-height: 1.55;
+}
 
-/* Featured top-match card */
+/* Featured top-match card inside the banner */
 .synergy-featured-card {
-  background: var(--background-fill-primary);
-  border: 1px solid var(--border-color-primary);
-  border-radius: 10px;
+  background: var(--syn-surface-2);
+  border: 1px solid var(--syn-border);
+  border-radius: 8px;
   padding: 14px 16px;
 }
-.synergy-featured-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.synergy-featured-name { font-size: 18px; font-weight: 600; }
+.synergy-featured-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.synergy-featured-name {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--syn-fg);
+}
 .synergy-featured-sim {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
-  color: var(--body-text-color-subdued);
-  background: var(--background-fill-secondary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--syn-fg-muted);
+  background: var(--syn-surface);
+  border: 1px solid var(--syn-border);
   padding: 3px 10px;
   border-radius: 999px;
   white-space: nowrap;
@@ -690,95 +875,143 @@ CUSTOM_CSS = """
 .synergy-featured-meta {
   display: flex; gap: 6px; flex-wrap: wrap;
   margin: 6px 0 10px 0;
-  font-size: 13px; color: var(--body-text-color-subdued);
+  font-size: 12.5px;
+  color: var(--syn-fg-muted);
+  text-transform: capitalize;
 }
-.synergy-divider { opacity: 0.4; }
+.synergy-divider { color: var(--syn-border-strong); }
 .synergy-featured-desc {
-  font-size: 14px; line-height: 1.5;
+  font-size: 13.5px;
+  line-height: 1.55;
   padding-top: 8px;
-  border-top: 1px solid var(--border-color-accent-subdued);
+  border-top: 1px solid var(--syn-border);
+  color: var(--syn-fg);
 }
 
-/* Outlier callouts */
+/* ---------- Outlier callouts ---------- */
 .synergy-outliers { margin-bottom: 16px; }
 .synergy-outlier-item {
-  display: flex; align-items: flex-start; gap: 8px;
-  padding: 10px 14px;
-  border-radius: 8px;
-  margin-bottom: 6px;
-  font-size: 14px; line-height: 1.5;
-  border-left-width: 4px; border-left-style: solid;
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 12px 16px;
+  border: 1px solid var(--syn-border);
+  border-left: 3px solid;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  font-size: 13.5px;
+  line-height: 1.55;
+  background: var(--syn-surface);
+  color: var(--syn-fg);
 }
-.synergy-outlier-strong { border-left-color: #dc2626; background: #fef2f2; }
-.synergy-outlier-soft   { border-left-color: #ca8a04; background: #fefce8; }
-.synergy-outlier-info   { border-left-color: #0284c7; background: #f0f9ff; }
-.dark .synergy-outlier-strong { background: rgba(220,38,38,0.10); }
-.dark .synergy-outlier-soft   { background: rgba(202,138,4,0.10); }
-.dark .synergy-outlier-info   { background: rgba(2,132,199,0.10); }
-.synergy-outlier-icon { flex: 0 0 auto; font-size: 16px; line-height: 1.4; }
+.synergy-outlier-strong { border-left-color: var(--syn-danger); }
+.synergy-outlier-soft   { border-left-color: var(--syn-warning); }
+.synergy-outlier-info   { border-left-color: var(--syn-info); }
+.synergy-outlier-icon {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  margin-top: 1px;
+  color: var(--syn-fg-soft);
+}
 
-/* Empty state */
+/* ---------- Empty state ---------- */
 .synergy-empty {
-  padding: 48px 24px;
-  text-align: center;
-  background: var(--background-fill-secondary);
-  border: 2px dashed var(--border-color-primary);
-  border-radius: 14px;
+  padding: 32px 28px;
+  background: var(--syn-surface);
+  border: 1px solid var(--syn-border);
+  border-left: 3px solid var(--syn-accent);
+  border-radius: 4px;
 }
-.synergy-empty-icon { font-size: 28px; margin-bottom: 10px; }
-.synergy-empty-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
-.synergy-empty-tip   { font-size: 14px; color: var(--body-text-color-subdued); max-width: 48ch; margin: 0 auto; line-height: 1.5; }
-
-/* Error banner */
-.synergy-error {
-  display: flex; align-items: center; gap: 10px;
-  padding: 14px 18px; border-radius: 10px;
-  background: #fef2f2; color: #991b1b;
-  border-left: 4px solid #dc2626;
+.synergy-empty-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: var(--syn-accent);
+  margin-bottom: 8px;
+}
+.synergy-empty-title {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--syn-fg);
+  margin-bottom: 4px;
+}
+.synergy-empty-tip {
   font-size: 14px;
+  color: var(--syn-fg-muted);
+  max-width: 56ch;
+  line-height: 1.6;
+}
+.synergy-empty-tip b { color: var(--syn-fg); font-weight: 600; }
+
+/* ---------- Error banner ---------- */
+.synergy-error {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 18px;
+  border: 1px solid var(--syn-border);
+  border-left: 3px solid var(--syn-danger);
+  border-radius: 4px;
+  background: var(--syn-surface);
+  color: var(--syn-fg);
+  font-size: 14px;
+  line-height: 1.55;
 }
 .synergy-error-icon {
-  font-weight: 700; font-size: 14px;
-  width: 22px; height: 22px; border-radius: 50%;
-  background: #dc2626; color: white;
+  flex: 0 0 auto;
+  font-weight: 700; font-size: 12px;
+  width: 20px; height: 20px;
+  border-radius: 50%;
+  background: var(--syn-danger); color: white;
   display: flex; align-items: center; justify-content: center;
 }
-.dark .synergy-error { background: rgba(220,38,38,0.10); color: #fca5a5; }
 
-/* Form group spacing */
-.synergy-form-group { margin-bottom: 4px; }
-
-/* Quick-start button row: matched pair of clean, equal-width buttons. */
-.synergy-quick-row { gap: 10px !important; align-items: stretch !important; }
-.synergy-quick-btn,
-.synergy-quick-btn button,
-.synergy-quick-btn label {
-  height: 56px !important;
-  min-height: 56px !important;
-  border-radius: 12px !important;
-  font-size: 15px !important;
-  font-weight: 500 !important;
-  letter-spacing: 0.01em;
-  transition: transform 0.06s ease, box-shadow 0.12s ease, background 0.12s ease;
+/* ---------- Neighbors table ---------- */
+.synergy-neighbors-wrap table {
+  border: 1px solid var(--syn-border) !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+  font-size: 13px;
 }
-.synergy-quick-btn button:hover,
-.synergy-quick-btn label:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+.synergy-neighbors-wrap thead th {
+  background: var(--syn-surface-2) !important;
+  color: var(--syn-fg-muted) !important;
+  font-weight: 600 !important;
+  font-size: 11px !important;
+  letter-spacing: 0.06em !important;
+  text-transform: uppercase;
+  padding: 10px 12px !important;
+  border-bottom: 1px solid var(--syn-border) !important;
 }
-.synergy-quick-btn button:active,
-.synergy-quick-btn label:active {
-  transform: translateY(0);
-  box-shadow: none;
+.synergy-neighbors-wrap tbody td {
+  padding: 10px 12px !important;
+  border-top: 1px solid var(--syn-border) !important;
+  color: var(--syn-fg);
+}
+.synergy-neighbors-wrap tbody tr:hover td {
+  background: var(--syn-surface-2) !important;
 }
 
-/* Footer */
+/* ---------- Footer ---------- */
 .synergy-footer {
-  margin-top: 24px;
+  margin-top: 32px;
   padding-top: 16px;
-  border-top: 1px solid var(--border-color-primary);
+  border-top: 1px solid var(--syn-border);
   font-size: 12px;
-  color: var(--body-text-color-subdued);
+  color: var(--syn-fg-soft);
+  line-height: 1.65;
+}
+.synergy-footer a {
+  color: var(--syn-fg-muted);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--syn-border-strong);
+  padding-bottom: 1px;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.synergy-footer a:hover {
+  color: var(--syn-accent);
+  border-bottom-color: var(--syn-accent);
 }
 """
 
@@ -794,7 +1027,8 @@ def make_demo() -> gr.Blocks:
     ) as demo:
         gr.HTML(
             '<div class="synergy-hero">'
-            '<h1>Slay the Spire Synergy Inspector</h1>'
+            '<span class="synergy-hero-eyebrow">Custom-card review</span>'
+            '<h1>Synergy Inspector</h1>'
             '<p>Designing a custom card? Drop a spec in and find out which '
             'existing cards it overlaps with, plus a quick stats outlier check '
             'against the published distribution. Encodes via the same Qwen3 '
@@ -805,23 +1039,26 @@ def make_demo() -> gr.Blocks:
 
         with gr.Row(equal_height=False):
             # ---------- LEFT: form ----------
-            with gr.Column(scale=2):
+            with gr.Column(scale=2, elem_classes="synergy-form-group"):
+                gr.HTML('<div class="synergy-section-label" style="margin-top:4px;">Compare against</div>')
                 game = gr.Radio(
                     choices=list(GAMES.keys()),
                     value=GAME_LABELS[initial_game],
-                    label="Compare against",
+                    show_label=False,
+                    container=False,
+                    elem_classes="synergy-game-radio",
                 )
 
                 gr.HTML('<div class="synergy-section-label">Quick start</div>')
                 with gr.Row(elem_classes="synergy-quick-row"):
                     randomize_btn = gr.Button(
-                        "🎲  Randomize",
+                        "Randomize",
                         variant="secondary",
                         scale=1,
                         elem_classes="synergy-quick-btn",
                     )
                     upload_btn = gr.UploadButton(
-                        "📁  Upload card",
+                        "Upload card",
                         file_types=[
                             ".json", ".csv", ".txt", ".md",
                             ".png", ".jpg", ".jpeg", ".webp",
@@ -906,20 +1143,27 @@ def make_demo() -> gr.Blocks:
                         damage = gr.Number(label="Damage", precision=0, minimum=0, maximum=99, value=None)
                         block = gr.Number(label="Block", precision=0, minimum=0, maximum=99, value=None)
 
-                analyze_btn = gr.Button("Analyze →", variant="primary", size="lg")
+                analyze_btn = gr.Button(
+                    "Analyze",
+                    variant="primary",
+                    size="lg",
+                    elem_classes="synergy-analyze-btn",
+                )
 
             # ---------- RIGHT: result ----------
             with gr.Column(scale=3):
-                gr.HTML('<div class="synergy-section-label">Verdict</div>')
+                gr.HTML('<div class="synergy-section-label" style="margin-top:4px;">Verdict</div>')
                 sim_banner = gr.HTML(_empty_state_html())
                 outlier_banner = gr.HTML("")
                 gr.HTML('<div class="synergy-section-label">Closest existing cards</div>')
-                neighbors = gr.Dataframe(
-                    headers=["similarity", "name", "type", "rarity", "cost", "color", "description"],
-                    interactive=False,
-                    wrap=True,
-                    row_count=(0, "dynamic"),
-                )
+                with gr.Column(elem_classes="synergy-neighbors-wrap"):
+                    neighbors = gr.Dataframe(
+                        headers=["similarity", "name", "type", "rarity", "cost", "color", "description"],
+                        interactive=False,
+                        wrap=True,
+                        row_count=(0, "dynamic"),
+                        show_label=False,
+                    )
 
         # ---------- Event wiring ----------
         game.change(
@@ -956,12 +1200,13 @@ def make_demo() -> gr.Blocks:
             'Built with <a href="https://github.com/timothy22000/slaythespire-codex">slaythespire-codex</a>. '
             'Outlier baselines and similarity thresholds are calibrated against the indexed '
             'corpus; cards far outside the existing distribution may register as "novel" '
-            'simply because nothing comparable exists. '
+            'simply because nothing comparable exists.<br>'
             'Data: '
             '<a href="https://huggingface.co/datasets/t22000t/slay-the-spire-1-cards">STS1 cards</a> · '
             '<a href="https://huggingface.co/datasets/t22000t/slay-the-spire-1-card-embeddings">STS1 embeddings</a> · '
             '<a href="https://huggingface.co/datasets/t22000t/slay-the-spire-2-cards">STS2 cards</a> · '
-            '<a href="https://huggingface.co/datasets/t22000t/slay-the-spire-2-card-embeddings">STS2 embeddings</a>.'
+            '<a href="https://huggingface.co/datasets/t22000t/slay-the-spire-2-card-embeddings">STS2 embeddings</a> · '
+            '<a href="https://huggingface.co/collections/t22000t/slaythespire-codex">collection</a>.'
             '</div>'
         )
 
